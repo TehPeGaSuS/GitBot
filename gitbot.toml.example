@@ -1,0 +1,74 @@
+# gitbot.toml — example configuration
+
+database = "gitbot.db"
+
+# Global outgoing bind address for IRC connections (IPv4 or IPv6).
+# Useful if your host has multiple IPs and you want to control which one
+# is used. Can be overridden per [[network]] with a local "bind" key.
+# bind = "192.0.2.1"
+# bind = "2001:db8::1"
+
+
+# ── Webhook HTTP server ───────────────────────────────────────────────────────
+[webhook_server]
+enabled = true
+host    = "127.0.0.1"   # use "::" to listen on all IPv6+IPv4 interfaces
+port    = 8080
+
+# Per-forge secrets. Two verification modes are supported — pick whichever
+# is easier to configure in your forge's webhook settings UI:
+#
+# Mode 1 — URL token (simplest):
+#   Leave the forge's "secret" field empty, and just append ?secret=... to
+#   the payload URL:
+#     https://yourhost/github?secret=changeme-github
+#     https://yourhost/gitea?secret=changeme-gitea
+#     https://yourhost/gitlab?secret=changeme-gitlab
+#
+# Mode 2 — HMAC header (more secure, secret never appears in URLs/logs):
+#   Set the secret here AND in the forge's webhook settings.
+#   GitHub/Gitea: HMAC-SHA256 of the body.
+#   GitLab: token compared directly against X-Gitlab-Token.
+#
+# Both modes use the same secret value below. Omit or leave empty to
+# accept all requests without verification (only for trusted networks).
+#
+# github_secret = "changeme-github"
+# gitea_secret  = "changeme-gitea"
+# gitlab_secret = "changeme-gitlab"
+
+
+# ── RSS poller ────────────────────────────────────────────────────────────────
+[rss]
+enabled  = true
+interval = 300   # seconds between polls
+
+
+# ── IRC networks ──────────────────────────────────────────────────────────────
+
+[[network]]
+name     = "libera"
+host     = "irc.libera.chat"
+port     = 6697
+tls      = true
+nickname = "gitbot"
+username = "gitbot"
+realname = "git webhook + RSS bot"
+channels = ["#myproject", "#ops"]
+
+# Per-network bind override (optional — overrides the global bind above)
+# bind = "192.0.2.2"
+
+# nickserv_password = "hunter2"
+# sasl_plain = { user = "gitbot", password = "hunter2" }
+
+
+[[network]]
+name     = "hackint"
+host     = "irc.hackint.org"
+port     = 6697
+tls      = true
+nickname = "gitbot"
+username = "gitbot"
+realname = "git webhook + RSS bot"
+channels = ["#myproject"]
