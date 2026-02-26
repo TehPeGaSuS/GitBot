@@ -88,6 +88,10 @@ class Bot:
         self._load_static_webhooks()
         self._load_static_rss()
 
+    @property
+    def _commit_limit(self) -> int:
+        return self._cfg.get("commit_limit", 3)
+
     # ── Static config loading ─────────────────────────────────────────────────
 
     def _load_static_webhooks(self):
@@ -99,6 +103,7 @@ class Bot:
                     db.webhook_add(
                         self._database, net, ch,
                         hook["repo"],
+                        hook.get("forge"),
                         hook.get("events", list(DEFAULT_EVENTS)),
                         hook.get("branches", []),
                     )
@@ -245,15 +250,20 @@ class Bot:
         primary = events[0] if events else ""
 
         targets = db.webhook_targets(
-            self._database, full_name, repo_user, organisation)
+            self._database, forge, full_name, repo_user, organisation)
 
         if not targets:
             log.debug("[%s] No targets for %s", forge, full_name)
             return
 
-        outputs = parser.parse(full_name, primary, data, headers)
+        outputs = parser.parse(full_name, primary, data, headers,
+                               commit_limit=self._commit_limit)
         if not outputs:
             return
+
+        forge_tag = fmt.bold(f"[{forge.capitalize()}]")
+        source    = fmt.color(full_name or organisation or repo_name or forge,
+                              fmt.COLOR_REPO)
 
         for target in targets:
             if branch and target["branches"] and branch not in target["branches"]:
@@ -265,12 +275,8 @@ class Bot:
             if not set(events) & allowed:
                 continue
 
-            source = fmt.color(
-                full_name or organisation or repo_name or forge,
-                fmt.COLOR_REPO)
-
             for message, url in outputs:
-                line = f"({source}) {message}"
+                line = f"{forge_tag} ({source}) {message}"
                 if url:
                     line = f"{line} - {url}"
                 await self._deliver_irc(target["network"], target["channel"], line)

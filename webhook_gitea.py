@@ -77,9 +77,9 @@ def event_categories(ev):
     return EVENT_CATEGORIES.get(ev, [ev])
 
 
-def parse(full_name, ev, data, headers):
+def parse(full_name, ev, data, headers, commit_limit=3):
     dispatch = {
-        "push":             _push,
+        "push": lambda fn, d: _push(fn, d, commit_limit),
         "pull_request":     _pull_request,
         "issues":           _issues,
         "issue_comment":    _issue_comment,
@@ -96,19 +96,32 @@ def parse(full_name, ev, data, headers):
     return []
 
 
-def _push(full_name, data):
+def _push(full_name, data, commit_limit=3):
     branch_str = color(data["ref"].rpartition("/")[2], COLOR_BRANCH)
-    author = bold(data["pusher"]["login"])
-    commits = data.get("commits", [])
-    outputs = []
-    if len(commits) <= 3:
-        for c in commits:
-            h = color(_short(c["id"]), COLOR_ID)
-            msg = c["message"].split("\n")[0].strip()
-            outputs.append((f"{author} pushed {h} to {branch_str}: {msg}", c["url"]))
-    else:
-        url = data.get("compare_url")
-        outputs.append((f"{author} pushed {len(commits)} commits to {branch_str}", url))
+    author     = bold(data["pusher"]["login"])
+    commits    = data.get("commits", [])
+    range_url  = data.get("compare_url")
+    n          = len(commits)
+
+    if not commits:
+        return [(f"{author} pushed to {branch_str}", None)]
+
+    # Single commit: one clean line
+    if n == 1:
+        c   = commits[0]
+        h   = color(_short(c["id"]), COLOR_ID)
+        msg = c["message"].split("\n")[0].strip()
+        return [(f"{author} pushed {h} to {branch_str}: {msg}", c.get("url"))]
+
+    # Multiple commits
+    outputs = [(f"{author} pushed {n} commits to {branch_str}", range_url)]
+    shown   = commits[:commit_limit]
+    for c in shown:
+        msg = c["message"].split("\n")[0].strip()
+        outputs.append((f"{author} {_short(c['id'])} - {msg}", None))
+    hidden = n - len(shown)
+    if hidden > 0:
+        outputs.append((f"(+{hidden} hidden commit{'s' if hidden != 1 else ''})", None))
     return outputs
 
 

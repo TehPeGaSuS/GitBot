@@ -184,13 +184,25 @@ async def _passwd(args, database, reply):
 
 # ── !webhook ──────────────────────────────────────────────────────────────────
 
+FORGES = {"github", "gitea", "gitlab"}
+
 WEBHOOK_HELP = (
     "!webhook list  |  "
-    "!webhook add <repo>  |  "
-    "!webhook remove <repo>  |  "
-    "!webhook events <repo> [event …]  |  "
-    "!webhook branches <repo> [branch …]"
+    "!webhook add <repo> [forge]  |  "
+    "!webhook remove <repo> [forge]  |  "
+    "!webhook events <repo> [forge] [event …]  |  "
+    "!webhook branches <repo> [forge] [branch …]"
 )
+
+
+def _parse_repo_forge(args, offset=0):
+    """Parse <repo> [forge] from args at offset. forge=None if not given."""
+    repo  = args[offset] if len(args) > offset else None
+    forge = None
+    if len(args) > offset + 1 and args[offset + 1].lower() in FORGES:
+        forge = args[offset + 1].lower()
+    return repo, forge
+
 
 async def _webhook(network, channel, args, database, reply):
     if not args:
@@ -205,56 +217,72 @@ async def _webhook(network, channel, args, database, reply):
             await reply("No webhooks registered for this channel.")
         else:
             for h in hooks:
-                branches = ", ".join(h["branches"]) or "all"
-                events   = ", ".join(h["events"])
-                await reply(f"  {h['repo']}  events={events}  branches={branches}")
+                branches  = ", ".join(h["branches"]) or "all"
+                events    = ", ".join(h["events"])
+                forge_str = f"  forge={h['forge']}" if h["forge"] else ""
+                await reply(f"  {h['repo']}{forge_str}  events={events}  branches={branches}")
 
     elif sub == "add":
         if len(args) < 2:
-            await reply("Usage: !webhook add <repo>")
+            await reply("Usage: !webhook add <repo> [forge]")
             return
-        db.webhook_add(database, network, channel, args[1])
-        await reply(f"Webhook added for {args[1]}")
+        repo, forge = _parse_repo_forge(args, offset=1)
+        db.webhook_add(database, network, channel, repo, forge)
+        forge_str = f" ({forge})" if forge else ""
+        await reply(f"Webhook added for {repo}{forge_str}")
 
     elif sub == "remove":
         if len(args) < 2:
-            await reply("Usage: !webhook remove <repo>")
+            await reply("Usage: !webhook remove <repo> [forge]")
             return
-        db.webhook_remove(database, network, channel, args[1])
-        await reply(f"Webhook removed for {args[1]}")
+        repo, forge = _parse_repo_forge(args, offset=1)
+        db.webhook_remove(database, network, channel, repo, forge)
+        forge_str = f" ({forge})" if forge else ""
+        await reply(f"Webhook removed for {repo}{forge_str}")
 
     elif sub == "events":
         if len(args) < 2:
-            await reply("Usage: !webhook events <repo> [event …]")
+            await reply("Usage: !webhook events <repo> [forge] [event …]")
             return
-        repo = args[1]
-        if len(args) == 2:
+        repo, forge = _parse_repo_forge(args, offset=1)
+        event_start = 3 if forge else 2
+        if len(args) < event_start + 1:
+            # Show current
             hooks = db.webhook_list(database, network, channel)
-            hook = next((h for h in hooks if h["repo"].lower() == repo.lower()), None)
+            hook  = next((h for h in hooks
+                          if h["repo"].lower() == repo.lower()
+                          and h["forge"] == forge), None)
             if not hook:
-                await reply(f"No webhook found for {repo}")
+                forge_str = f" ({forge})" if forge else ""
+                await reply(f"No webhook found for {repo}{forge_str}")
             else:
                 await reply(f"{repo} events: {', '.join(hook['events'])}")
         else:
-            events = [e.lower() for e in args[2:]]
-            db.webhook_set_events(database, network, channel, repo, events)
+            events = [e.lower() for e in args[event_start:]]
+            db.webhook_set_events(database, network, channel, repo, events, forge)
             await reply(f"Updated events for {repo}: {', '.join(events)}")
 
     elif sub == "branches":
         if len(args) < 2:
-            await reply("Usage: !webhook branches <repo> [branch …]")
+            await reply("Usage: !webhook branches <repo> [forge] [branch …]")
             return
-        repo = args[1]
-        if len(args) == 2:
+        repo, forge = _parse_repo_forge(args, offset=1)
+        branch_start = 3 if forge else 2
+        if len(args) < branch_start + 1:
+            # Show current
             hooks = db.webhook_list(database, network, channel)
-            hook = next((h for h in hooks if h["repo"].lower() == repo.lower()), None)
+            hook  = next((h for h in hooks
+                          if h["repo"].lower() == repo.lower()
+                          and h["forge"] == forge), None)
             if not hook:
-                await reply(f"No webhook found for {repo}")
+                forge_str = f" ({forge})" if forge else ""
+                await reply(f"No webhook found for {repo}{forge_str}")
             else:
                 await reply(f"{repo} branches: {', '.join(hook['branches']) or 'all'}")
         else:
-            db.webhook_set_branches(database, network, channel, repo, args[2:])
-            await reply(f"Updated branches for {repo}: {', '.join(args[2:])}")
+            branches = args[branch_start:]
+            db.webhook_set_branches(database, network, channel, repo, branches, forge)
+            await reply(f"Updated branches for {repo}: {', '.join(branches)}")
 
     else:
         await reply(WEBHOOK_HELP)

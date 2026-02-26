@@ -95,9 +95,9 @@ def event_categories(ev):
     return EVENT_CATEGORIES.get(ev, [ev])
 
 
-def parse(full_name, ev, data, headers):
+def parse(full_name, ev, data, headers, commit_limit=3):
     dispatch = {
-        "push":              _push,
+        "push": lambda fn, d: _push(fn, d, commit_limit),
         "tag_push":          _tag_push,
         "merge_request":     _merge_request,
         "issue":             _issues,
@@ -112,18 +112,31 @@ def parse(full_name, ev, data, headers):
     return []
 
 
-def _push(full_name, data):
+def _push(full_name, data, commit_limit=3):
     branch_str = color(data["ref"].rpartition("/")[2], COLOR_BRANCH)
-    author = bold(data["user_username"])
-    commits = data.get("commits", [])
-    outputs = []
-    if len(commits) <= 3:
-        for c in commits:
-            h = color(_short(c["id"]), COLOR_ID)
-            msg = c["message"].split("\n")[0].strip()
-            outputs.append((f"{author} pushed {h} to {branch_str}: {msg}", c["url"]))
-    else:
-        outputs.append((f"{author} pushed {len(commits)} commits to {branch_str}", None))
+    author     = bold(data["user_username"])
+    commits    = data.get("commits", [])
+    n          = len(commits)
+
+    if not commits:
+        return [(f"{author} pushed to {branch_str}", None)]
+
+    # Single commit: one clean line
+    if n == 1:
+        c   = commits[0]
+        h   = color(_short(c["id"]), COLOR_ID)
+        msg = c["message"].split("\n")[0].strip()
+        return [(f"{author} pushed {h} to {branch_str}: {msg}", c.get("url"))]
+
+    # Multiple commits (GitLab has no compare URL in push payloads)
+    outputs = [(f"{author} pushed {n} commits to {branch_str}", None)]
+    shown   = commits[:commit_limit]
+    for c in shown:
+        msg = c["message"].split("\n")[0].strip()
+        outputs.append((f"{author} {_short(c['id'])} - {msg}", c.get("url")))
+    hidden = n - len(shown)
+    if hidden > 0:
+        outputs.append((f"(+{hidden} hidden commit{'s' if hidden != 1 else ''})", None))
     return outputs
 
 

@@ -2,7 +2,6 @@
 
 import json
 import sqlite3
-from pathlib import Path
 
 
 def connect(path: str) -> sqlite3.Connection:
@@ -17,22 +16,23 @@ def connect(path: str) -> sqlite3.Connection:
 def _migrate(db: sqlite3.Connection):
     db.executescript("""
         CREATE TABLE IF NOT EXISTS webhook_routes (
-            id          INTEGER PRIMARY KEY,
-            network     TEXT NOT NULL,
-            channel     TEXT NOT NULL,
-            repo        TEXT NOT NULL,
-            events      TEXT NOT NULL DEFAULT '["ping","code","pr","issue","repo"]',
-            branches    TEXT NOT NULL DEFAULT '[]'
-        );
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook
-            ON webhook_routes(network, channel, repo);
-
-        CREATE TABLE IF NOT EXISTS rss_feeds (
             id       INTEGER PRIMARY KEY,
             network  TEXT NOT NULL,
             channel  TEXT NOT NULL,
-            url      TEXT NOT NULL,
-            format   TEXT NOT NULL DEFAULT '$feed_name: $title <$link>'
+            repo     TEXT NOT NULL,
+            forge    TEXT,
+            events   TEXT NOT NULL DEFAULT '["ping","code","pr","issue","repo"]',
+            branches TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_webhook
+            ON webhook_routes(network, channel, repo, forge);
+
+        CREATE TABLE IF NOT EXISTS rss_feeds (
+            id      INTEGER PRIMARY KEY,
+            network TEXT NOT NULL,
+            channel TEXT NOT NULL,
+            url     TEXT NOT NULL,
+            format  TEXT NOT NULL DEFAULT '$feed_name: $title <$link>'
         );
         CREATE UNIQUE INDEX IF NOT EXISTS uq_rss
             ON rss_feeds(network, channel, url);
@@ -44,7 +44,25 @@ def _migrate(db: sqlite3.Connection):
         );
     """)
     db.commit()
-    # Migrate existing databases that predate the format column
+    _migrate_webhook_forge(db)
+    _migrate_rss_format(db)
+
+
+def _migrate_webhook_forge(db):
+    """Add forge column and rebuild unique index to include it."""
+    cols = [r[1] for r in db.execute("PRAGMA table_info(webhook_routes)").fetchall()]
+    if "forge" in cols:
+        return
+    db.executescript("""
+        ALTER TABLE webhook_routes ADD COLUMN forge TEXT;
+        DROP INDEX IF EXISTS uq_webhook;
+        CREATE UNIQUE INDEX uq_webhook
+            ON webhook_routes(network, channel, repo, forge);
+    """)
+    db.commit()
+
+
+def _migrate_rss_format(db):
     cols = [r[1] for r in db.execute("PRAGMA table_info(rss_feeds)").fetchall()]
     if "format" not in cols:
         db.execute("""
@@ -53,6 +71,8 @@ def _migrate(db: sqlite3.Connection):
         """)
         db.commit()
 
+
+# ── Purge helpers (used by reload) ────────────────────────────────────────────
 
 def purge_network(db, network: str):
     """Remove all webhook routes and RSS feeds for a network."""
@@ -72,37 +92,39 @@ def purge_channel(db, network: str, channel: str):
 
 # ── Webhook routes ────────────────────────────────────────────────────────────
 
-def webhook_add(db, network, channel, repo,
+def webhook_add(db, network, channel, repo, forge=None,
                 events=None, branches=None):
     events   = events   or ["ping", "code", "pr", "issue", "repo"]
     branches = branches or []
     db.execute("""
-        INSERT INTO webhook_routes(network, channel, repo, events, branches)
-        VALUES (?,?,?,?,?)
-        ON CONFLICT(network, channel, repo) DO UPDATE
+        INSERT INTO webhook_routes(network, channel, repo, forge, events, branches)
+        VALUES (?,?,?,?,?,?)
+        ON CONFLICT(network, channel, repo, forge) DO UPDATE
             SET events=excluded.events, branches=excluded.branches
-    """, (network, channel, repo,
+    """, (network, channel, repo, forge,
           json.dumps(events), json.dumps(branches)))
     db.commit()
 
 
-def webhook_remove(db, network, channel, repo):
+def webhook_remove(db, network, channel, repo, forge=None):
     db.execute("""
         DELETE FROM webhook_routes
         WHERE network=? AND channel=? AND repo=?
-    """, (network, channel, repo))
+          AND (forge IS ? OR (forge IS NULL AND ? IS NULL))
+    """, (network, channel, repo, forge, forge))
     db.commit()
 
 
 def webhook_list(db, network, channel):
     rows = db.execute("""
-        SELECT repo, events, branches FROM webhook_routes
+        SELECT repo, forge, events, branches FROM webhook_routes
         WHERE network=? AND channel=?
-        ORDER BY repo
+        ORDER BY repo, forge
     """, (network, channel)).fetchall()
     return [
         {
             "repo":     r["repo"],
+            "forge":    r["forge"],
             "events":   json.loads(r["events"]),
             "branches": json.loads(r["branches"]),
         }
@@ -110,27 +132,35 @@ def webhook_list(db, network, channel):
     ]
 
 
-def webhook_set_events(db, network, channel, repo, events):
+def webhook_set_events(db, network, channel, repo, events, forge=None):
     db.execute("""
         UPDATE webhook_routes SET events=?
         WHERE network=? AND channel=? AND repo=?
-    """, (json.dumps(events), network, channel, repo))
+          AND (forge IS ? OR (forge IS NULL AND ? IS NULL))
+    """, (json.dumps(events), network, channel, repo, forge, forge))
     db.commit()
 
 
-def webhook_set_branches(db, network, channel, repo, branches):
+def webhook_set_branches(db, network, channel, repo, branches, forge=None):
     db.execute("""
         UPDATE webhook_routes SET branches=?
         WHERE network=? AND channel=? AND repo=?
-    """, (json.dumps(branches), network, channel, repo))
+          AND (forge IS ? OR (forge IS NULL AND ? IS NULL))
+    """, (json.dumps(branches), network, channel, repo, forge, forge))
     db.commit()
 
 
-def webhook_targets(db, full_name, repo_user, organisation):
-    """Return all (network, channel, events, branches) matching this repo."""
+def webhook_targets(db, forge, full_name, repo_user, organisation):
+    """
+    Return routes matching this repo+forge.
+    Routes with forge=NULL match any forge; specific forge routes only match
+    that forge.
+    """
     rows = db.execute("""
-        SELECT network, channel, repo, events, branches FROM webhook_routes
-    """).fetchall()
+        SELECT network, channel, repo, forge, events, branches
+        FROM webhook_routes
+        WHERE forge IS NULL OR forge=?
+    """, (forge,)).fetchall()
     results = []
     candidates = {x.lower() for x in [full_name, repo_user, organisation] if x}
     for r in rows:
@@ -147,7 +177,7 @@ def webhook_targets(db, full_name, repo_user, organisation):
 # ── RSS feeds ─────────────────────────────────────────────────────────────────
 
 def rss_add(db, network, channel, url):
-    """Insert feed. Returns (id, created) — created=False if it already existed."""
+    """Insert feed. Returns (id, created) — created=False if already existed."""
     existing = db.execute("""
         SELECT id FROM rss_feeds WHERE network=? AND channel=? AND url=?
     """, (network, channel, url)).fetchone()
@@ -179,7 +209,6 @@ def rss_list(db, network, channel):
 
 
 def rss_all_feeds(db):
-    """Return all feeds: list of {id, network, channel, url, format}."""
     rows = db.execute("""
         SELECT id, network, channel, url, format FROM rss_feeds
     """).fetchall()
@@ -187,7 +216,6 @@ def rss_all_feeds(db):
 
 
 def rss_set_format(db, network, channel, url, fmt):
-    """Update format template for a feed. Returns True if the feed was found."""
     db.execute("""
         UPDATE rss_feeds SET format=? WHERE network=? AND channel=? AND url=?
     """, (fmt, network, channel, url))
@@ -206,7 +234,6 @@ def rss_mark_seen(db, feed_id, entry_ids):
     db.executemany("""
         INSERT OR IGNORE INTO rss_seen(feed_id, entry_id) VALUES (?,?)
     """, [(feed_id, eid) for eid in entry_ids])
-    # Keep only the most recent 500 per feed to avoid unbounded growth
     db.execute("""
         DELETE FROM rss_seen WHERE feed_id=? AND entry_id NOT IN (
             SELECT entry_id FROM rss_seen WHERE feed_id=?

@@ -104,10 +104,10 @@ def event_categories(ev):
     return EVENT_CATEGORIES.get(ev, [ev])
 
 
-def parse(full_name, ev, data, headers):
+def parse(full_name, ev, data, headers, commit_limit=3):
     """Return list of (message, url) tuples."""
     dispatch = {
-        "push":                       _push,
+        "push":                       lambda fn, d: _push(fn, d, commit_limit),
         "commit_comment":             _commit_comment,
         "pull_request":               _pull_request,
         "pull_request_review":        _pr_review,
@@ -128,33 +128,40 @@ def parse(full_name, ev, data, headers):
     return []
 
 
-def _format_push(branch_str, author, commits, forced, single_url, range_url):
-    outputs = []
+def _push(full_name, data, commit_limit=3):
+    branch_str = color(data["ref"].split("/", 2)[2], COLOR_BRANCH)
+    author     = bold(data["pusher"]["name"])
+    forced     = data.get("forced", False)
+    commits    = data.get("commits", [])
     forced_str = f"{color('force', RED)} " if forced else ""
+
     if not commits and forced:
         return [(f"{author} {forced_str}pushed to {branch_str}", None)]
-    if len(commits) <= 3:
-        for c in commits:
-            h = color(_short(c["id"]), COLOR_ID)
-            msg = c["message"].split("\n")[0].strip()
-            url = single_url % c["id"]
-            outputs.append((f"{author} {forced_str}pushed {h} to {branch_str}: {msg}", url))
-    else:
-        url = range_url
-        outputs.append((f"{author} {forced_str}pushed {len(commits)} commits to {branch_str}", url))
-    return outputs
 
-
-def _push(full_name, data):
-    branch_str = color(data["ref"].split("/", 2)[2], COLOR_BRANCH)
-    author = bold(data["pusher"]["name"])
-    forced = data.get("forced", False)
-    commits = data.get("commits", [])
     range_url = None
     if commits:
         range_url = COMMIT_RANGE_URL % (full_name, data["before"], commits[-1]["id"])
-    single_url = COMMIT_URL % (full_name, "%s")
-    return _format_push(branch_str, author, commits, forced, single_url, range_url)
+
+    n = len(commits)
+
+    # Single commit: one clean line with hash, branch and message
+    if n == 1:
+        c   = commits[0]
+        h   = color(_short(c["id"]), COLOR_ID)
+        msg = c["message"].split("\n")[0].strip()
+        url = COMMIT_URL % (full_name, c["id"])
+        return [(f"{author} {forced_str}pushed {h} to {branch_str}: {msg}", url)]
+
+    # Multiple commits: summary line + individual lines + optional hidden count
+    outputs = [(f"{author} {forced_str}pushed {n} commits to {branch_str}", range_url)]
+    shown   = commits[:commit_limit]
+    for c in shown:
+        msg = c["message"].split("\n")[0].strip()
+        outputs.append((f"{author} {_short(c['id'])} - {msg}", None))
+    hidden = n - len(shown)
+    if hidden > 0:
+        outputs.append((f"(+{hidden} hidden commit{'s' if hidden != 1 else ''})", None))
+    return outputs
 
 
 def _commit_comment(full_name, data):
