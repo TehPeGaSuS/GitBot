@@ -64,7 +64,7 @@ The bot requires an owner account before it will start. Run setup once:
 
 ```bash
 source venv/bin/activate   # if not already active
-python bot.py --setup -c gitbot.toml
+python bot.py -c gitbot.toml --setup
 ```
 
 You will be prompted for a nick and password. These are stored in the SQLite
@@ -113,7 +113,7 @@ To run `--setup` with systemd in place:
 
 ```bash
 sudo systemctl stop gitbot
-sudo -u gitbot /opt/gitbot/venv/bin/python /opt/gitbot/bot.py --setup -c /opt/gitbot/gitbot.toml
+sudo -u gitbot /opt/gitbot/venv/bin/python /opt/gitbot/bot.py -c /opt/gitbot/gitbot.toml --setup
 sudo systemctl start gitbot
 ```
 
@@ -177,17 +177,42 @@ and RSS entries from the database for any removed networks or channels.
 
 ```
 !webhook list
-!webhook add <repo>
-!webhook remove <repo>
-!webhook events <repo>                   ← show current event filter
-!webhook events <repo> code pr repo      ← set event filter
-!webhook branches <repo>                 ← show current branch filter
-!webhook branches <repo> main develop    ← only announce these branches
+!webhook add <repo> [forge]
+!webhook remove <repo> [forge]
+!webhook events <repo> [forge]                   ← show current event filter
+!webhook events <repo> [forge] code pr repo      ← set event filter
+!webhook branches <repo> [forge]                 ← show current branch filter
+!webhook branches <repo> [forge] main develop    ← only announce these branches
 ```
 
-`<repo>` can be:
-- `owner/repo` — a specific repository
-- `owner` — all repos by that owner (matched against the owner field in the payload)
+`<repo>` can be `owner/repo` (specific repo) or `owner` (all repos by that owner).
+
+`[forge]` is optional: `github`, `gitea`, or `gitlab`. When omitted the route
+matches payloads from any forge. Specify it when the same `owner/repo` slug
+exists on multiple forges and needs independent routing:
+
+```
+!webhook add alice/bot           ← matches any forge
+!webhook add alice/bot github    ← GitHub only
+!webhook add alice/bot gitea     ← Gitea only (same channel, same repo name)
+```
+
+Output format — single commit:
+```
+[Github] (unrealircd/unrealircd) syzop pushed c24424b to unreal60_dev: fix the thing - https://...
+```
+
+Output format — multiple commits:
+```
+[Github] (anope/anope) sadiepowell pushed 8 commits to 2.1 - https://.../compare/...
+[Github] (anope/anope) sadiepowell 538b2cf - Refactor the logic in ns_cert.
+[Github] (anope/anope) sadiepowell d0c2bae - Add a type for wrapping examples.
+[Github] (anope/anope) sadiepowell 8062d01 - Rework the output of nickserv/list.
+[Github] (anope/anope) (+5 hidden commits)
+```
+
+The number of individual commit lines shown before the hidden count is
+controlled by `commit_limit` in `gitbot.toml` (default: 3).
 
 Configure your forge to send webhooks to:
 ```
@@ -292,13 +317,21 @@ SQLite at the path configured by `database` in `gitbot.toml` (default: `gitbot.d
 
 Stores:
 - Owner account (nick + hashed password + hostmasks)
-- Webhook routing (network, channel, repo, event filter, branch filter)
+- Webhook routing (network, channel, repo, forge, event filter, branch filter)
 - RSS feeds (network, channel, URL, format template)
 - Seen RSS entry IDs (to avoid re-announcing; capped at 500 per feed)
 
-Schema is created automatically on first run. The `format` column added in a
-later release is migrated automatically via `ALTER TABLE` if you're upgrading
-from an earlier version.
+Schema is created automatically on first run. New columns (`format`, `forge`)
+are migrated automatically via `ALTER TABLE` on startup, so upgrading from an
+earlier version requires no manual steps.
+
+## Configurable options (gitbot.toml)
+
+| Key | Default | Description |
+|---|---|---|
+| `database` | `gitbot.db` | Path to SQLite database |
+| `bind` | *(none)* | Outgoing IP for IRC connections; per-network `bind` overrides this |
+| `commit_limit` | `3` | Max individual commit lines shown per push before collapsing to a hidden count |
 
 ---
 
