@@ -1,0 +1,57 @@
+{
+  "_comment": "Copy this file to config.json and edit it.",
+
+  "networks": [
+    {
+      "name":          "libera",
+      "host":          "irc.libera.chat",
+      "port":          6697,
+      "tls":           true,
+      "nick":          "mybot",
+      "username":      "mybot",
+      "realname":      "Gitbot",
+      "password":      "",
+      "sasl_password": "",
+      "channels":      ["#myproject", "#bots"],
+      "command_prefix": "!",
+      "admins": [
+        "mynick!myuser@my.isp.host",
+        "*!*@trusted.vhost"
+      ]
+    },
+    {
+      "name":          "oftc",
+      "host":          "irc.oftc.net",
+      "port":          6697,
+      "tls":           true,
+      "nick":          "mybot",
+      "username":      "mybot",
+      "realname":      "Gitbot",
+      "password":      "",
+      "sasl_password": "",
+      "channels":      ["#myproject-dev"],
+      "command_prefix": "!",
+      "admins": [
+        "mynick!*@*"
+      ]
+    }
+  ],
+
+  "webhook": {
+    "_comment_host": "Bind the webhook HTTP server here. Use 127.0.0.1 and put nginx/caddy in front.",
+    "host": "127.0.0.1",
+    "port": 8765,
+    "secret": ""
+  },
+
+  "auth_password": "",
+  "db_path":      "data/gitbot.db",
+  "rss_interval": 300,
+  "log_level":    "INFO",
+
+  "shlink": {
+    "_comment": "Optional Shlink self-hosted URL shortener (https://shlink.io). Remove or leave url/api_key empty to disable.",
+    "url":     "",
+    "api_key": ""
+  }
+}

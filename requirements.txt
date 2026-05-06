@@ -1,0 +1,11 @@
+# Install inside a virtual environment:
+#
+#   python3 -m venv ~/virtualenv
+#   source ~/virtualenv/bin/activate
+#   pip install -r requirements.txt
+#
+# To run the bot without activating the venv each time:
+#   ~/virtualenv/bin/python3 bot.py config.json
+
+aiohttp>=3.9.0
+feedparser>=6.0.8

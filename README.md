@@ -1,0 +1,273 @@
+# Gitbot
+
+A single IRC bot that combines:
+- **Bitbot's** GitHub / Gitea / GitLab webhook announcements
+- **Limnoria's** RSS/Atom feed polling and announcement system
+
+Multi-network, SQLite-backed, configured entirely through IRC commands.
+
+---
+
+## Requirements
+
+- Python 3.9+
+- `pip install -r requirements.txt`  (aiohttp, feedparser)
+
+---
+
+## Quick start
+
+```bash
+cp config.example.json config.json
+# edit config.json — set your networks, nick, admins, webhook port
+python bot.py config.json
+```
+
+---
+
+## Configuration (`config.json`)
+
+| Field | Default | Description |
+|---|---|---|
+| `networks` | — | List of IRC network objects (see below) |
+| `webhook.host` | `127.0.0.1` | IP to bind the webhook HTTP server |
+| `webhook.port` | `8765` | Port for the webhook HTTP server |
+| `webhook.secret` | `""` | HMAC secret; leave empty to skip verification |
+| `db_path` | `data/gitbot.db` | SQLite database path |
+| `rss_interval` | `300` | RSS poll interval in seconds |
+| `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+
+### Network object
+
+```json
+{
+  "name":           "libera",
+  "host":           "irc.libera.chat",
+  "port":           6697,
+  "tls":            true,
+  "nick":           "mybot",
+  "username":       "mybot",
+  "realname":       "Gitbot",
+  "password":       "",
+  "sasl_password":  "",
+  "channels":       ["#myproject"],
+  "command_prefix": "!",
+  "admins":         ["mynick!myuser@myhost"]
+}
+```
+
+`admins` are glob patterns matched against `nick!user@host`.  
+`sasl_password` enables SASL PLAIN authentication.
+
+---
+
+## Webhook setup
+
+### 1. Start the bot
+
+The built-in HTTP server listens on `webhook.host:webhook.port`.
+
+Webhook endpoints:
+| Platform | URL path |
+|---|---|
+| GitHub   | `POST /github` |
+| Gitea    | `POST /gitea`  |
+| GitLab   | `POST /gitlab` |
+
+### 2. Reverse-proxy (recommended)
+
+Put nginx or Caddy in front so you can use HTTPS:
+
+```nginx
+location /github {
+    proxy_pass http://127.0.0.1:8765;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+```
+
+### 3. Register a webhook in IRC
+
+```
+!webhook add owner/repo
+```
+
+Then point your GitHub/Gitea/GitLab webhook at `https://your.host/github`  
+(or `/gitea`, `/gitlab`).
+
+### 4. HMAC secret (optional but recommended)
+
+Set `webhook.secret` in `config.json` and paste the same value into  
+GitHub → Settings → Webhooks → Secret.
+
+---
+
+## IRC commands — Webhooks
+
+All webhook commands require admin.
+
+```
+!webhook list
+    List all hooks registered in this channel.
+
+!webhook add <owner/repo|owner|org>
+    Register a new webhook hook.
+    Use "owner/repo" for a specific repo, "owner" for all repos from a user,
+    or an org name for all repos in an organisation.
+
+!webhook remove <hook>
+    Remove a hook.
+
+!webhook events <hook> [category ...]
+    Show or replace the event category filter.
+    If no categories given, shows the current list.
+
+!webhook branches <hook> [branch ...]
+    Show or replace the branch filter.
+    If no branches given, shows the current filter (empty = all branches).
+
+!webhook show <hook>
+    Show the full configuration for a hook.
+
+!webhook settings
+    Show all display settings for this channel.
+
+!webhook settings <key> <true|false>
+    Toggle a display setting. Keys:
+      git-hide-organisation   -- hide the "owner/" prefix in repo names
+      git-hide-prefix         -- hide the "[git]" prefix from announcements
+      git-prevent-highlight   -- insert ZWNJ to avoid pinging channel users
+      git-show-private        -- announce events from private repositories
+```
+
+### Event categories
+
+Pass one or more to `!webhook events <hook> <category ...>`:
+
+| Category | Events included |
+|---|---|
+| `ping` | new webhook |
+| `code` | push, commit_comment |
+| `pr-minimal` | PR opened/closed/reopened |
+| `pr` | all common PR events |
+| `pr-all` | every PR sub-event |
+| `pr-review-minimal` | review submitted/dismissed |
+| `issue-minimal` | issue opened/closed/reopened/deleted |
+| `issue` | all common issue events |
+| `issue-all` | every issue sub-event |
+| `repo` | create, delete, release, fork |
+| `star` | watch (GitHub star) |
+| `team` | membership changes |
+
+Default: `ping code pr issue repo`
+
+---
+
+## IRC commands — RSS
+
+```
+!rss list
+    List all globally registered named feeds.
+
+!rss add <name> <url>
+    Register a named feed.  (admin)
+    Example: !rss add limnoria https://github.com/progval/Limnoria/releases.atom
+
+!rss remove <name>
+    Remove a named feed.  (admin)
+
+!rss announce list
+    List feeds being announced in this channel.
+
+!rss announce add <name|url> [<name|url> ...]
+    Start announcing a feed in this channel.  (admin)
+    Accepts either a registered feed name or a direct URL.
+    Existing entries are silently marked as seen — no flood on first add.
+
+!rss announce remove <name|url> [...]
+    Stop announcing a feed in this channel.  (admin)
+
+!rss read [<name|url>] [<n>]
+    Fetch and display the latest n entries (default 3, max 10).
+    If no feed specified, uses the first announced feed.
+
+!rss info <name|url>
+    Show feed metadata (title, entry count, last updated).
+
+!rss format [<template>]
+    Show or set the announcement format template for this channel.
+    Default: [$feed_name] $title — $link
+
+!rss interval [<seconds>]
+    Show or set the poll interval.  (admin, minimum 30 s)
+```
+
+### Format template variables
+
+| Variable | Content |
+|---|---|
+| `$feed_name` | Registered name or URL |
+| `$feed_title` | Title from the feed itself |
+| `$title` | Entry title (HTML stripped) |
+| `$link` | Entry URL |
+| `$author` | Entry author |
+| `$date` | Published/updated date |
+| `$description` | Entry summary (HTML stripped) |
+
+Plus any raw field from the feedparser entry dict.
+
+Example custom format:
+```
+!rss format [$feed_name] $title by $author ($date) → $link
+```
+
+---
+
+## Admin commands
+
+```
+!join <#channel>
+!part [#channel] [reason]
+!say <target> <message>
+!raw <irc line>
+!networks
+!quit [reason]
+!reload
+```
+
+---
+
+## Multi-network behaviour
+
+- Each network is an independent connection with its own nick, channels, and admin list.
+- Webhook hooks and RSS announcements are stored per-**network**/channel, so the same  
+  webhook can fan out to different channels on different networks simultaneously.
+- To see which network a channel is on, use `!networks`.
+
+---
+
+## Architecture
+
+```
+bot.py                  entry point, asyncio.run()
+src/
+  config.py             JSON config loader
+  database.py           SQLite wrapper (channel_settings, bot_settings)
+  formatting.py         IRC colour/bold helpers
+  network.py            async IRC connection (TLS, SASL, flood throttle, reconnect)
+  bot.py                Bot class, command router, message sender
+modules/
+  webhooks.py           HTTP server + !webhook IRC command
+  wh_github.py          GitHub payload handler
+  wh_gitea.py           Gitea payload handler
+  wh_gitlab.py          GitLab payload handler
+  rss.py                RSS poller + !rss IRC command
+  admin.py              !join !part !say !raw !quit !reload
+data/
+  gitbot.db         auto-created SQLite database
+```
+
+---
+
+## Licence
+
+MIT — feel free to use, modify, and redistribute.
