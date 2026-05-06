@@ -1,0 +1,60 @@
+{
+  "_comment": "Copy this file to config.json and edit it.",
+
+  "networks": [
+    {
+      "name":          "ptirc",
+      "host":          "irc.ptirc.org",
+      "port":          6697,
+      "tls":           true,
+      "nick":          "GitBotter",
+      "username":      "mybot",
+      "realname":      "Gitbot",
+      "password":      "",
+      "sasl_password": "",
+      "channels":      ["#spamtest"],
+      "command_prefix": "!",
+      "admins": []
+    },
+    {
+      "name":          "unrealircd",
+      "host":          "irc.unrealircd.org",
+      "port":          6697,
+      "tls":           true,
+      "nick":          "GitBot",
+      "username":      "GitBot",
+      "realname":      "Git Webhooks Bot",
+      "password":      "",
+      "sasl_password": "bond807@@",
+      "channels":      ["#unreal-devel"],
+      "command_prefix": "!",
+      "admins": []
+    },
+    {
+      "name":          "libera",
+      "host":          "irc.libera.chat",
+      "port":          6697,
+      "tls":           true,
+      "nick":          "GitNotifier",
+      "username":      "GitNotif",
+      "realname":      "Git Webhooks Bot",
+      "password":      "",
+      "sasl_password": "eggdrop807@@",
+      "channels":      ["##git"],
+      "command_prefix": "!",
+      "admins": []
+    }
+  ],
+
+  "webhook": {
+    "_comment_host": "Bind the webhook HTTP server here. Use 127.0.0.1 and put nginx/caddy in front.",
+    "host": "127.0.0.1",
+    "port": 8765,
+    "secret": "Ievath0Ivaurahte"
+  },
+
+  "auth_password": "eggdrop",
+  "db_path":      "data/gitbot.db",
+  "rss_interval": 300,
+  "log_level":    "DEBUG"
+}
