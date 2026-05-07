@@ -11,6 +11,10 @@ Basic bot administration commands.
   !networks                     -- list connected networks
   !quit [reason]                -- disconnect from all networks and exit
   !reload                       -- reload config from disk
+
+All commands work via PM too (prefix required):
+  /msg gitbot !webhook list #channel
+  /msg gitbot !rss announce list #channel
 """
 
 import asyncio
