@@ -261,7 +261,7 @@ async def handle_command(ctx):
     if not ctx.args:
         if ctx.is_pm:
             ctx.reply(
-                "Usage: rss <subcommand> [#channel] [args]  "
+                "Usage: !rss <subcommand> [#channel] [args]  "
                 "— subcommands: add remove list announce read info format interval"
             )
         else:
