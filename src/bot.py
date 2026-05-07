@@ -14,6 +14,7 @@ import asyncio
 import fnmatch
 import logging
 import os
+import signal
 import typing
 
 from src.config import Config
@@ -30,6 +31,7 @@ class Bot:
         os.makedirs(os.path.dirname(config.db_path) or ".", exist_ok=True)
         self.db = Database(config.db_path)
         self.networks: typing.Dict[str, Network] = {}
+        self._network_tasks: typing.Dict[str, asyncio.Task] = {}
 
         # Initialise Shlink URL shortener (no-op if not configured)
         _shlink.configure(config.shlink.url, config.shlink.api_key)
@@ -47,7 +49,9 @@ class Bot:
         for net_cfg in self.config.networks:
             net = Network(net_cfg, self)
             self.networks[net_cfg.name] = net
-            tasks.append(asyncio.ensure_future(net.run()))
+            task = asyncio.ensure_future(net.run())
+            self._network_tasks[net_cfg.name] = task
+            tasks.append(task)
 
         # Webhook HTTP server
         from modules.webhooks import WebhookServer
@@ -59,8 +63,71 @@ class Bot:
         rss = RSSPoller(self)
         tasks.append(asyncio.ensure_future(rss.run()))
 
+        # SIGHUP → reload config (Unix only)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.add_signal_handler(
+                signal.SIGHUP,
+                lambda: asyncio.ensure_future(self.reload_config())
+            )
+            log.info("SIGHUP handler registered — send SIGHUP to reload config.")
+        except (AttributeError, NotImplementedError):
+            pass   # Windows doesn't have SIGHUP
+
         await asyncio.gather(*tasks)
         await _shlink.close()
+
+    # ------------------------------------------------------------------ reload
+
+    async def reload_config(self) -> typing.Tuple[list, list]:
+        """Re-read config.json, reconcile network connections, and purge DB
+        rows for any networks that were removed.
+
+        Returns (added_names, removed_names) for reporting to the caller.
+        """
+        log.info("Reloading configuration from %s", self.config.path)
+        self.config.reload()
+
+        # Re-configure shlink in case its settings changed
+        _shlink.configure(self.config.shlink.url, self.config.shlink.api_key)
+
+        old_names = set(self.networks.keys())
+        new_names = {nc.name for nc in self.config.networks}
+
+        removed = old_names - new_names
+        added   = new_names - old_names
+
+        # --- disconnect removed networks ---
+        for name in removed:
+            net = self.networks.pop(name, None)
+            task = self._network_tasks.pop(name, None)
+            if net:
+                try:
+                    net._raw("QUIT :Network removed from config")
+                    await asyncio.sleep(0.5)
+                except Exception:
+                    pass
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+            purged = self.db.purge_network(name)
+            log.info("Removed network %r — purged %d DB rows", name, purged)
+
+        # --- connect new networks ---
+        for net_cfg in self.config.networks:
+            if net_cfg.name in added:
+                net = Network(net_cfg, self)
+                self.networks[net_cfg.name] = net
+                task = asyncio.ensure_future(net.run())
+                self._network_tasks[net_cfg.name] = task
+                log.info("Added network %r", net_cfg.name)
+
+        log.info("Reload complete. Added: %s  Removed: %s",
+                 list(added) or "none", list(removed) or "none")
+        return sorted(added), sorted(removed)
 
     # --------------------------------------------------------------- modules
 
