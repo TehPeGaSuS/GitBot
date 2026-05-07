@@ -118,3 +118,15 @@ class Database:
                 "DELETE FROM bot_settings WHERE key=?", (key,)
             )
             self._conn.commit()
+
+    def purge_network(self, network: str) -> int:
+        """Delete all channel_settings rows for *network*.
+
+        Returns the number of rows deleted.
+        """
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM channel_settings WHERE network=?", (network,)
+            )
+            self._conn.commit()
+            return cur.rowcount
