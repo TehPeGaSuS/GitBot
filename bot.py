@@ -34,13 +34,20 @@ def main():
         log.info("Copy config.example.json to %s and edit it.", config_path)
         sys.exit(1)
 
-    config = Config(config_path)
-    bot = Bot(config)
+    try:
+        config = Config(config_path)
+        bot = Bot(config)
+    except Exception:
+        log.exception("Failed to initialise bot — check your config and installation.")
+        sys.exit(1)
 
     try:
         asyncio.run(bot.run())
     except KeyboardInterrupt:
         log.info("Shutting down.")
+    except Exception:
+        log.exception("Fatal error — bot is exiting.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
