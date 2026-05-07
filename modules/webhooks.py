@@ -199,7 +199,9 @@ class WebhookServer:
             for output, url in outputs:
                 line = "(%s) %s" % (fmt.color(source, fmt.COLOR_REPO), output)
                 if url:
-                    short_url = await shlink.shorten(url)
+                    use_shlink = self.bot.db.get_channel(net_name, channel_name,
+                                                         "git-shlink", True)
+                    short_url = await shlink.shorten(url) if use_shlink else url
                     line = "%s - %s" % (line, short_url)
                 if prevent_hl:
                     line = fmt.prevent_highlight(channel_nicks, line)
@@ -446,6 +448,8 @@ async def handle_command(ctx):
                     ctx.net_name, ctx.channel, "git-prevent-highlight", False),
                 "git-show-private": ctx.bot.db.get_channel(
                     ctx.net_name, ctx.channel, "git-show-private", False),
+                "git-shlink": ctx.bot.db.get_channel(
+                    ctx.net_name, ctx.channel, "git-shlink", True),
             }
             ctx.reply("Webhook settings: " +
                       " | ".join("%s=%s" % (k, v) for k, v in opts.items()))
@@ -455,7 +459,7 @@ async def handle_command(ctx):
                 return
             key, val = rest[0], rest[1].lower() in ("true", "1", "yes", "on")
             allowed = {"git-hide-organisation", "git-hide-prefix",
-                       "git-prevent-highlight", "git-show-private"}
+                       "git-prevent-highlight", "git-show-private", "git-shlink"}
             if key not in allowed:
                 ctx.error("Unknown setting. Allowed: %s" % ", ".join(sorted(allowed)))
                 return
