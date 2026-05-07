@@ -71,8 +71,15 @@ async def handle_command(ctx):
         sys.exit(0)
 
     elif cmd == "reload":
-        ctx.bot.config.reload()
-        ctx.reply("Config reloaded.")
+        ctx.reply("Reloading config…")
+        added, removed = await ctx.bot.reload_config()
+        parts = []
+        if added:
+            parts.append("added: " + ", ".join(added))
+        if removed:
+            parts.append("removed: " + ", ".join(removed))
+        detail = " | ".join(parts) if parts else "no network changes"
+        ctx.reply("Reload complete — %s." % detail)
 
     else:
         ctx.error("Unknown admin command. Available: join part say raw networks quit reload")
