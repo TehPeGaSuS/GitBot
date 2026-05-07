@@ -318,7 +318,7 @@ async def handle_command(ctx):
     if not ctx.args:
         if ctx.is_pm:
             ctx.reply(
-                "Usage: webhook <list|add|remove|events|branches|show|settings> "
+                "Usage: !webhook <list|add|remove|events|branches|show|settings> "
                 "#channel [github|gitea|gitlab] [args]"
             )
         else:
