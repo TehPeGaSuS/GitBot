@@ -33,6 +33,8 @@ python bot.py config.json
 | `webhook.host` | `127.0.0.1` | IP to bind the webhook HTTP server |
 | `webhook.port` | `8765` | Port for the webhook HTTP server |
 | `webhook.secret` | `""` | HMAC secret; leave empty to skip verification |
+| `shlink.url` | `""` | Base URL of your [Shlink](https://shlink.io) instance |
+| `shlink.api_key` | `""` | Shlink REST API key |
 | `db_path` | `data/gitbot.db` | SQLite database path |
 | `rss_interval` | `300` | RSS poll interval in seconds |
 | `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
@@ -58,6 +60,35 @@ python bot.py config.json
 
 `admins` are glob patterns matched against `nick!user@host`.  
 `sasl_password` enables SASL PLAIN authentication.
+
+---
+
+## URL shortening (Shlink)
+
+Gitbot can shorten webhook URLs via a self-hosted [Shlink](https://shlink.io) instance:
+
+```json
+"shlink": {
+  "url":     "https://s.example.com",
+  "api_key": "YOUR-API-KEY"
+}
+```
+
+Omit the block (or leave `url`/`api_key` empty) to disable. Can also be toggled
+per-channel with `!webhook settings git-shlink false` (see below).
+
+---
+
+## Reloading config
+
+Config can be reloaded without restarting the bot in two ways:
+
+- **IRC:** `!reload` — reloads `config.json` and reports what changed
+- **Terminal:** `kill -HUP <pid>` — same effect, no IRC output
+
+On reload, networks added to `config.json` are connected automatically.  
+Networks removed from `config.json` are disconnected and their channel settings
+are purged from the database.
 
 ---
 
@@ -137,6 +168,7 @@ All webhook commands require admin.
       git-hide-prefix         -- hide the "[git]" prefix from announcements
       git-prevent-highlight   -- insert ZWNJ to avoid pinging channel users
       git-show-private        -- announce events from private repositories
+      git-shlink              -- shorten URLs via Shlink (default: true)
 ```
 
 ### Event categories
@@ -236,11 +268,30 @@ Example custom format:
 
 ---
 
+## Using commands via PM
+
+All commands work in a private message to the bot (prefix required).  
+Channel-scoped commands take `#channel` as their first argument:
+
+```
+/msg gitbot !webhook list #mychannel
+/msg gitbot !webhook settings git-shlink false #mychannel
+/msg gitbot !rss announce list #mychannel
+/msg gitbot !rss format #mychannel [$feed_name] $title → $link
+/msg gitbot !reload
+```
+
+This is useful for keeping configuration chatter out of public channels.
+
+---
+
 ## Multi-network behaviour
 
 - Each network is an independent connection with its own nick, channels, and admin list.
 - Webhook hooks and RSS announcements are stored per-**network**/channel, so the same  
   webhook can fan out to different channels on different networks simultaneously.
+- Adding or removing a network in `config.json` and running `!reload` (or `kill -HUP`)
+  connects/disconnects it live. Removed networks have their DB entries purged automatically.
 - To see which network a channel is on, use `!networks`.
 
 ---
@@ -250,11 +301,12 @@ Example custom format:
 ```
 bot.py                  entry point, asyncio.run()
 src/
-  config.py             JSON config loader
+  config.py             JSON config loader (incl. ShlinkConfig)
   database.py           SQLite wrapper (channel_settings, bot_settings)
   formatting.py         IRC colour/bold helpers
   network.py            async IRC connection (TLS, SASL, flood throttle, reconnect)
-  bot.py                Bot class, command router, message sender
+  bot.py                Bot class, command router, reload_config(), SIGHUP handler
+  shlink.py             async Shlink URL shortener client
 modules/
   webhooks.py           HTTP server + !webhook IRC command
   wh_github.py          GitHub payload handler
