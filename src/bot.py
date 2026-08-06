@@ -132,11 +132,12 @@ class Bot:
     # --------------------------------------------------------------- modules
 
     def _load_modules(self):
-        from modules import webhooks, rss, admin
+        from modules import webhooks, rss, admin, help as help_module
         self._modules = {
             "webhook":  webhooks,
             "rss":      rss,
             "admin":    admin,
+            "help":     help_module,
         }
 
     # ------------------------------------------------------- command dispatch
@@ -172,6 +173,9 @@ class Bot:
         elif command in ("auth", "deauth"):
             from modules.admin import handle_auth
             await handle_auth(ctx)
+        elif command == "help":
+            from modules.help import handle_command
+            await handle_command(ctx)
 
     def _is_admin(self, network: Network, hostmask: str,
                  nick: str = "") -> bool:

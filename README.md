@@ -254,6 +254,15 @@ Example custom format:
 
 ---
 
+## Help
+
+```
+!help              -- list available commands
+!help <command>    -- show usage for one command
+```
+
+---
+
 ## Admin commands
 
 ```
