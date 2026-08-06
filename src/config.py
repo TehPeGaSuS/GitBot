@@ -9,6 +9,57 @@ import os
 log = logging.getLogger(__name__)
 
 
+def _strip_json_comments(text: str) -> str:
+    """Strip // line comments and /* */ block comments from JSONC text.
+
+    String-aware: only strips comment markers found outside of JSON string
+    literals, so "http://example.com" and the like are left untouched.
+    """
+    out = []
+    i = 0
+    n = len(text)
+    in_string = False
+    escape = False
+
+    while i < n:
+        ch = text[i]
+
+        if in_string:
+            out.append(ch)
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == "/" and i + 1 < n and text[i + 1] == "/":
+            i += 2
+            while i < n and text[i] not in "\r\n":
+                i += 1
+            continue
+
+        if ch == "/" and i + 1 < n and text[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+
+        out.append(ch)
+        i += 1
+
+    return "".join(out)
+
+
 class NetworkConfig:
     def __init__(self, data: dict):
         self.name: str = data["name"]           # e.g. "libera"
@@ -46,7 +97,7 @@ class Config:
     def __init__(self, path: str):
         self.path = path
         with open(path) as f:
-            data = json.load(f)
+            data = json.loads(_strip_json_comments(f.read()))
 
         self.networks = [NetworkConfig(n) for n in data.get("networks", [])]
         self.webhook = WebhookConfig(data.get("webhook", {}))

@@ -296,10 +296,11 @@ class Network:
         is_pm = not target.startswith(("#", "&", "+", "!"))
 
         if is_pm:
-            # In PMs the prefix is required, same as in channels.
-            if not msg.startswith(pfx):
-                return
-            msg = msg[len(pfx):]
+            # In PMs the prefix is optional — bare "join #foo" works the
+            # same as "!join #foo", since there's no channel chatter to
+            # disambiguate from.
+            if msg.startswith(pfx):
+                msg = msg[len(pfx):]
         else:
             # In channels, require the command prefix.
             if not msg.startswith(pfx):
