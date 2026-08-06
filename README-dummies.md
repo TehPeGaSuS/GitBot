@@ -342,6 +342,26 @@ server {
 
 Then use `https://mybot.example.com/github` as your webhook URL.
 
+**Option 1b — Apache reverse proxy**
+
+Requires `mod_proxy`, `mod_proxy_http`, and `mod_headers` enabled
+(`sudo a2enmod proxy proxy_http headers`):
+
+```apache
+<VirtualHost *:443>
+    ServerName mybot.example.com
+    # ... your SSL cert config ...
+
+    ProxyPreserveHost On
+    RequestHeader set X-Real-IP %{REMOTE_ADDR}s
+
+    ProxyPass / http://127.0.0.1:8765/
+    ProxyPassReverse / http://127.0.0.1:8765/
+</VirtualHost>
+```
+
+Then use `https://mybot.example.com/github` as your webhook URL, same as above.
+
 **Option 2 — expose directly**
 
 Change `"host": "0.0.0.0"` in config.json and open port 8765 in your firewall.
