@@ -123,7 +123,7 @@ location /github {
 ### 3. Register a webhook in IRC
 
 ```
-!webhook add owner/repo
+!webhook add github owner/repo
 ```
 
 Then point your GitHub/Gitea/GitLab webhook at `https://your.host/github`  
@@ -144,23 +144,25 @@ All webhook commands require admin.
 !webhook list
     List all hooks registered in this channel.
 
-!webhook add <owner/repo|owner|org>
-    Register a new webhook hook.
+!webhook add <github|gitea|gitlab> <owner/repo|owner|org>
+    Register a new webhook hook on a specific platform.
     Use "owner/repo" for a specific repo, "owner" for all repos from a user,
     or an org name for all repos in an organisation.
+    The same repo name is tracked independently per platform, so
+    "gitea:acme/widget" and "github:acme/widget" never collide.
 
-!webhook remove <hook>
+!webhook remove <github|gitea|gitlab> <hook>
     Remove a hook.
 
-!webhook events <hook> [category ...]
+!webhook events <github|gitea|gitlab> <hook> [category ...]
     Show or replace the event category filter.
     If no categories given, shows the current list.
 
-!webhook branches <hook> [branch ...]
+!webhook branches <github|gitea|gitlab> <hook> [branch ...]
     Show or replace the branch filter.
     If no branches given, shows the current filter (empty = all branches).
 
-!webhook show <hook>
+!webhook show <github|gitea|gitlab> <hook>
     Show the full configuration for a hook.
 
 !webhook settings
@@ -290,6 +292,7 @@ Channel-scoped commands take `#channel` as their first argument:
 
 ```
 /msg gitbot webhook list #mychannel
+/msg gitbot webhook add #mychannel github owner/repo
 /msg gitbot webhook settings git-shlink false #mychannel
 /msg gitbot rss announce list #mychannel
 /msg gitbot rss format #mychannel [$feed_name] $title → $link

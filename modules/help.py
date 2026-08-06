@@ -14,7 +14,8 @@ same as every other command.
 # src/bot.py:dispatch_command().
 COMMANDS = {
     "help":     "help [command] -- list commands, or show usage for one command",
-    "webhook":  "webhook <list|add|remove|events|branches|show|settings> [args] "
+    "webhook":  "webhook <list|settings> [args] | webhook <add|remove|events|branches|show> "
+                "<github|gitea|gitlab> <owner/repo|owner|org> [args] "
                 "-- manage GitHub/Gitea/GitLab webhook subscriptions for a channel "
                 "(alias: wh)",
     "rss":      "rss <add|remove|list|announce|read|info|format|interval> [args] "

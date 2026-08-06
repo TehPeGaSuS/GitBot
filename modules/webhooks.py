@@ -10,11 +10,11 @@ Two responsibilities:
 IRC command syntax
 ------------------
   !webhook list
-  !webhook add <owner/repo|owner|org>
-  !webhook remove <hook>
-  !webhook events <hook> [category ...]      -- show or set event categories
-  !webhook branches <hook> [branch ...]      -- show or set branch filter
-  !webhook show <hook>                       -- show full config for a hook
+  !webhook add <github|gitea|gitlab> <owner/repo|owner|org>
+  !webhook remove <github|gitea|gitlab> <hook>
+  !webhook events <github|gitea|gitlab> <hook> [category ...]      -- show or set event categories
+  !webhook branches <github|gitea|gitlab> <hook> [branch ...]      -- show or set branch filter
+  !webhook show <github|gitea|gitlab> <hook>                       -- show full config for a hook
 
 Default event categories (all active by default):
   ping  code  pr  issue  repo
