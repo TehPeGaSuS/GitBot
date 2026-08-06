@@ -195,11 +195,34 @@ class Network:
         for chunk in _split_by_bytes(text, limit):
             self._raw(f"NOTICE {target} :{chunk}")
 
+    def _learn_own_hostmask(self, parts: list):
+        """Update _own_hostmask from a line's source prefix, if it's us.
+
+        Catches JOIN, self MODE, self PART, KICK of us, etc. — anything
+        with a full "nick!user@host" prefix matching our current nick.
+        Doesn't catch CHGHOST (the new host isn't in the prefix) or the
+        396 cloak-assignment numeric (no "!user@host" prefix at all);
+        those are handled explicitly in _handle_line.
+        """
+        prefix = parts[0]
+        if not prefix.startswith(":") or "!" not in prefix:
+            return
+        prefix = prefix[1:]
+        nick = prefix.split("!", 1)[0]
+        if nick == self.config.nick:
+            self._own_hostmask = prefix
+
     # ----------------------------------------------------------- line handling
 
     async def _handle_line(self, line: str):
         log.debug("[%s] << %s", self.name, line)
         parts = line.split(" ")
+
+        # Keep _own_hostmask fresh from *any* line the server attributes to
+        # us — cloaks/vhosts can be assigned or changed well after our
+        # initial JOIN (delayed cloak-on-connect, HostServ/oper vhost
+        # changes mid-session), so a one-time JOIN snapshot goes stale.
+        self._learn_own_hostmask(parts)
 
         # PING
         if parts[0] == "PING":
@@ -231,13 +254,38 @@ class Network:
             self._raw("CAP END")
             return
 
+        # 396 – RPL_HOSTHIDDEN, sent when a cloak/vhost is (re-)assigned.
+        # No "!user@host" prefix here, only "nick new.host", so this can't
+        # be picked up by _learn_own_hostmask — handle it explicitly. The
+        # username isn't given, so keep whatever we last knew (or config
+        # default before we've ever learned one).
+        if len(parts) >= 4 and parts[1] == "396":
+            nick = parts[2]
+            new_host = parts[3]
+            if nick == self.config.nick:
+                user = self.config.username
+                if self._own_hostmask and "@" in self._own_hostmask:
+                    user = self._own_hostmask.split("!", 1)[1].split("@", 1)[0]
+                self._own_hostmask = f"{nick}!{user}@{new_host}"
+            return
+
+        # CHGHOST – user/host changed mid-session (HostServ, oper vhost,
+        # etc.). The prefix still carries the OLD host; the new user/host
+        # are the command parameters, so handle it explicitly too.
+        if len(parts) >= 4 and parts[1] == "CHGHOST":
+            old_nick = parts[0].split("!")[0].lstrip(":")
+            if old_nick == self.config.nick:
+                new_user = parts[2]
+                new_host = parts[3].lstrip(":")
+                self._own_hostmask = f"{old_nick}!{new_user}@{new_host}"
+            return
+
         # JOIN
         if len(parts) >= 3 and parts[1] == "JOIN":
             channel = parts[2].lstrip(":")
             nick = parts[0].split("!")[0].lstrip(":")
             if nick == self.config.nick:
                 self.channels.add(channel.lower())
-                self._own_hostmask = parts[0].lstrip(":")
                 log.info("[%s] Joined %s", self.name, channel)
                 # Ask for the current channel modes so we know about +c etc.
                 self._raw(f"MODE {channel}")
