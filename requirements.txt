@@ -8,5 +8,5 @@
 #   ~/virtualenv/bin/python3 bot.py config.json
 
 aiohttp>=3.9.0
-feedparser>=6.0.8
+feedparser>=6.0.14
 json5>=0.9.0
