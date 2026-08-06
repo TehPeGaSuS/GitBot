@@ -36,8 +36,8 @@ ALIASES = {"wh": "webhook"}
 async def handle_command(ctx):
     if not ctx.args:
         names = sorted(COMMANDS)
-        ctx.reply("Available commands: %s" % ", ".join(names))
-        ctx.reply("Use 'help <command>' for usage.")
+        ctx.reply("Available commands: %s (use 'help <command>' for usage)"
+                   % ", ".join(names))
         return
 
     name = ALIASES.get(ctx.args[0].lower(), ctx.args[0].lower())
