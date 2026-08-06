@@ -100,7 +100,7 @@ async def handle_auth(ctx):
     # Auth commands must come via PM — never accept them in a channel
     # to avoid leaking the password into channel logs.
     if not ctx.is_pm:
-        ctx.network.send_notice(ctx.nick,
+        ctx.network.send_privmsg(ctx.nick,
             "auth/deauth must be sent via private message.")
         return
 
@@ -109,21 +109,21 @@ async def handle_auth(ctx):
 
     if cmd == "auth":
         if not password:
-            ctx.network.send_notice(ctx.nick,
+            ctx.network.send_privmsg(ctx.nick,
                 "No auth password configured for this network.")
             return
         if not ctx.args:
-            ctx.network.send_notice(ctx.nick, "Usage: auth <password>")
+            ctx.network.send_privmsg(ctx.nick, "Usage: auth <password>")
             return
         given = ctx.args[0]
         if _hmac.compare_digest(given, password):
             ctx.network.authed_nicks.add(ctx.nick)
-            ctx.network.send_notice(ctx.nick,
+            ctx.network.send_privmsg(ctx.nick,
                 "You are now authenticated as admin on %s." % ctx.network.name)
         else:
-            ctx.network.send_notice(ctx.nick, "Wrong password.")
+            ctx.network.send_privmsg(ctx.nick, "Wrong password.")
 
     elif cmd == "deauth":
         ctx.network.authed_nicks.discard(ctx.nick)
-        ctx.network.send_notice(ctx.nick,
+        ctx.network.send_privmsg(ctx.nick,
             "Session dropped. You are no longer authenticated.")
