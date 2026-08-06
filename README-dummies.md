@@ -336,7 +336,7 @@ server {
     server_name mybot.example.com;
     # ... your SSL cert config ...
 
-    location / {
+    location /github {
         proxy_pass http://127.0.0.1:8765;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -354,19 +354,24 @@ Apache (requires `mod_proxy`, `mod_proxy_http`, and `mod_headers` enabled —
     ProxyPreserveHost On
     RequestHeader set X-Real-IP %{REMOTE_ADDR}s
 
-    ProxyPass / http://127.0.0.1:8765/
-    ProxyPassReverse / http://127.0.0.1:8765/
+    ProxyPass /github http://127.0.0.1:8765/github
+    ProxyPassReverse /github http://127.0.0.1:8765/github
 </VirtualHost>
 ```
 
 Caddy (handles the TLS certificate for you automatically):
 ```caddy
 mybot.example.com {
-    reverse_proxy 127.0.0.1:8765
+    handle /github {
+        reverse_proxy 127.0.0.1:8765
+    }
 }
 ```
 
 Then use `https://mybot.example.com/github` as your webhook URL.
+Using Gitea or GitLab instead (or as well)? Add the same block again for
+`/gitea` or `/gitlab` — or just proxy `/` if you'd rather forward
+everything with one rule.
 
 **Option 2 — expose directly**
 
