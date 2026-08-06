@@ -104,16 +104,20 @@ class Network:
                 backoff = min(backoff * 2, 300)
 
     async def _connect(self):
-        log.info("[%s] Connecting to %s:%d (TLS=%s)",
-                 self.name, self.config.host, self.config.port, self.config.tls)
+        log.info("[%s] Connecting to %s:%d (TLS=%s%s)",
+                 self.name, self.config.host, self.config.port, self.config.tls,
+                 ", bind=%s" % self.config.bind if self.config.bind else "")
+
+        local_addr = (self.config.bind, 0) if self.config.bind else None
 
         if self.config.tls:
             ctx = ssl.create_default_context()
             reader, writer = await asyncio.open_connection(
-                self.config.host, self.config.port, ssl=ctx)
+                self.config.host, self.config.port, ssl=ctx,
+                local_addr=local_addr)
         else:
             reader, writer = await asyncio.open_connection(
-                self.config.host, self.config.port)
+                self.config.host, self.config.port, local_addr=local_addr)
 
         self._writer = writer
         self._connected = True

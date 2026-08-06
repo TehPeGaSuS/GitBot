@@ -14,6 +14,10 @@
       "sasl_password": "",
       "channels":      ["#myproject", "#bots"],
       "command_prefix": "!",
+      // Optional: bind the outbound connection to this local IP
+      // (e.g. on a multi-homed box, or one IP per network to
+      // avoid k-lines). Leave empty/omit to use the default route.
+      "bind": "",
       "admins": [
         "mynick!myuser@my.isp.host",
         "*!*@trusted.vhost"

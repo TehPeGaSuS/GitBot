@@ -23,6 +23,7 @@ class NetworkConfig:
         self.channels: list = data.get("channels", [])
         self.admins: list = data.get("admins", [])   # nick!user@host masks
         self.command_prefix: str = data.get("command_prefix", "!")
+        self.bind: str = data.get("bind", "")   # local IP to bind outbound connection to
 
 
 class ShlinkConfig:

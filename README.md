@@ -54,12 +54,16 @@ python bot.py config.json
   "sasl_password":  "",
   "channels":       ["#myproject"],
   "command_prefix": "!",
+  "bind":           "",
   "admins":         ["mynick!myuser@myhost"]
 }
 ```
 
 `admins` are glob patterns matched against `nick!user@host`.  
-`sasl_password` enables SASL PLAIN authentication.
+`sasl_password` enables SASL PLAIN authentication.  
+`bind` (optional) binds the outbound connection to a specific local IP —
+useful on a multi-homed box, or to give each network its own source IP.
+Leave empty to use the default route.
 
 ---
 
