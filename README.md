@@ -270,15 +270,17 @@ Example custom format:
 
 ## Using commands via PM
 
-All commands work in a private message to the bot (prefix required).  
+All commands work in a private message to the bot. The `!` prefix is
+optional in PMs — there's no channel chatter to disambiguate from, so
+either form works.  
 Channel-scoped commands take `#channel` as their first argument:
 
 ```
-/msg gitbot !webhook list #mychannel
-/msg gitbot !webhook settings git-shlink false #mychannel
-/msg gitbot !rss announce list #mychannel
-/msg gitbot !rss format #mychannel [$feed_name] $title → $link
-/msg gitbot !reload
+/msg gitbot webhook list #mychannel
+/msg gitbot webhook settings git-shlink false #mychannel
+/msg gitbot rss announce list #mychannel
+/msg gitbot rss format #mychannel [$feed_name] $title → $link
+/msg gitbot reload
 ```
 
 This is useful for keeping configuration chatter out of public channels.
