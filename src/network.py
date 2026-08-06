@@ -26,6 +26,36 @@ log = logging.getLogger(__name__)
 FLOOD_BURST = 5
 FLOOD_DELAY = 1.2   # seconds between lines after burst
 
+# RFC 2812: a full line, including the leading ":prefix " the server
+# prepends and the trailing CRLF, must not exceed 512 bytes.
+MAX_LINE_BYTES = 512
+# Longest hostname component the server may hand us in a hostmask, used
+# as a conservative fallback until we've actually seen our own hostmask.
+MAX_HOSTNAME_BYTES = 63
+
+
+def _split_by_bytes(text: str, max_bytes: int) -> typing.List[str]:
+    """Split text into chunks of at most max_bytes UTF-8 bytes each,
+    never cutting a multi-byte character in half."""
+    if max_bytes <= 0:
+        max_bytes = 1
+    encoded = text.encode("utf-8")
+    n = len(encoded)
+    if n <= max_bytes:
+        return [text]
+
+    chunks = []
+    start = 0
+    while start < n:
+        end = min(start + max_bytes, n)
+        # Back off if we landed inside a multi-byte UTF-8 sequence —
+        # continuation bytes have the top two bits set to 10.
+        while end > start and end < n and (encoded[end] & 0xC0) == 0x80:
+            end -= 1
+        chunks.append(encoded[start:end].decode("utf-8"))
+        start = end
+    return chunks
+
 
 class Network:
     def __init__(self, config: NetworkConfig, bot: "Bot"):  # type: ignore
@@ -45,6 +75,10 @@ class Network:
         self._writer: typing.Optional[asyncio.StreamWriter] = None
         self._connected = False
         self._registered = False
+
+        # Our own nick!user@host, learned from our own JOIN echo. Used to
+        # size outgoing PRIVMSG/NOTICE splits correctly — see send_privmsg().
+        self._own_hostmask: str = ""
 
         # flood control
         self._send_queue: asyncio.Queue = asyncio.Queue()
@@ -84,6 +118,7 @@ class Network:
         self._writer = writer
         self._connected = True
         self.authed_nicks.clear()  # sessions don't survive reconnects
+        self._own_hostmask = ""   # re-learned from our next JOIN echo
 
         # start write-loop
         asyncio.ensure_future(self._write_loop())
@@ -134,11 +169,31 @@ class Network:
                 except Exception:
                     break
 
+    def _max_text_bytes(self, command: str, target: str) -> int:
+        """Budget for the trailing text of an outgoing PRIVMSG/NOTICE.
+
+        The 512-byte RFC 2812 line limit applies to the line as the server
+        relays it — i.e. INCLUDING the ":nick!user@host " prefix the server
+        prepends, which we never send ourselves. We estimate it using our
+        own hostmask once we've learned it from a JOIN echo; until then we
+        fall back to a conservative worst-case estimate.
+        """
+        own = self._own_hostmask or (
+            f"{self.config.nick}!{self.config.username}@"
+            + "x" * MAX_HOSTNAME_BYTES
+        )
+        frame = f":{own} {command} {target} :\r\n"
+        return MAX_LINE_BYTES - len(frame.encode("utf-8"))
+
     def send_privmsg(self, target: str, text: str):
-        self._raw(f"PRIVMSG {target} :{text}")
+        limit = self._max_text_bytes("PRIVMSG", target)
+        for chunk in _split_by_bytes(text, limit):
+            self._raw(f"PRIVMSG {target} :{chunk}")
 
     def send_notice(self, target: str, text: str):
-        self._raw(f"NOTICE {target} :{text}")
+        limit = self._max_text_bytes("NOTICE", target)
+        for chunk in _split_by_bytes(text, limit):
+            self._raw(f"NOTICE {target} :{chunk}")
 
     # ----------------------------------------------------------- line handling
 
@@ -182,6 +237,7 @@ class Network:
             nick = parts[0].split("!")[0].lstrip(":")
             if nick == self.config.nick:
                 self.channels.add(channel.lower())
+                self._own_hostmask = parts[0].lstrip(":")
                 log.info("[%s] Joined %s", self.name, channel)
                 # Ask for the current channel modes so we know about +c etc.
                 self._raw(f"MODE {channel}")
