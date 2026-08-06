@@ -4,7 +4,6 @@ Configuration loader.  Reads config.json and provides typed access.
 
 import json5
 import logging
-import os
 
 log = logging.getLogger(__name__)
 

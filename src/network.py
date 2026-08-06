@@ -20,6 +20,9 @@ import typing
 
 from src.config import NetworkConfig
 
+if typing.TYPE_CHECKING:
+    from src.bot import Bot
+
 log = logging.getLogger(__name__)
 
 # Maximum lines per burst before throttling
@@ -58,7 +61,7 @@ def _split_by_bytes(text: str, max_bytes: int) -> typing.List[str]:
 
 
 class Network:
-    def __init__(self, config: NetworkConfig, bot: "Bot"):  # type: ignore
+    def __init__(self, config: NetworkConfig, bot: "Bot"):
         self.config = config
         self.bot = bot
         self.name = config.name

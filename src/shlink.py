@@ -21,7 +21,6 @@ Errors are logged but never bubble up — if shortening fails the
 original long URL is used as a fallback so IRC output is never lost.
 """
 
-import asyncio
 import logging
 from typing import Optional
 

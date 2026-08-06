@@ -6,7 +6,6 @@ All configured via IRC commands.
 """
 
 import asyncio
-import json
 import logging
 import os
 import sys

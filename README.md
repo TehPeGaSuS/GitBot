@@ -114,6 +114,7 @@ Webhook endpoints:
 
 Put nginx, Apache, or Caddy in front so you can use HTTPS:
 
+nginx:
 ```nginx
 location /github {
     proxy_pass http://127.0.0.1:8765;
@@ -121,11 +122,19 @@ location /github {
 }
 ```
 
+Apache:
 ```apache
 ProxyPass /github http://127.0.0.1:8765/github
 ProxyPassReverse /github http://127.0.0.1:8765/github
 ProxyPreserveHost On
 RequestHeader set X-Real-IP %{REMOTE_ADDR}s
+```
+
+Caddy:
+```caddy
+handle /github {
+    reverse_proxy 127.0.0.1:8765
+}
 ```
 
 ### 3. Register a webhook in IRC

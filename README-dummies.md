@@ -324,8 +324,12 @@ and announces it in your IRC channel.
 The webhook server listens on `localhost:8765` by default.  GitHub needs to
 be able to reach it.
 
-**Option 1 — nginx reverse proxy (recommended)**
+**Option 1 — reverse proxy (recommended)**
 
+Pick whichever web server you already run — they all end up giving you the
+same `https://mybot.example.com/github` webhook URL.
+
+nginx:
 ```nginx
 server {
     listen 443 ssl;
@@ -340,13 +344,8 @@ server {
 }
 ```
 
-Then use `https://mybot.example.com/github` as your webhook URL.
-
-**Option 1b — Apache reverse proxy**
-
-Requires `mod_proxy`, `mod_proxy_http`, and `mod_headers` enabled
-(`sudo a2enmod proxy proxy_http headers`):
-
+Apache (requires `mod_proxy`, `mod_proxy_http`, and `mod_headers` enabled —
+`sudo a2enmod proxy proxy_http headers`):
 ```apache
 <VirtualHost *:443>
     ServerName mybot.example.com
@@ -360,7 +359,14 @@ Requires `mod_proxy`, `mod_proxy_http`, and `mod_headers` enabled
 </VirtualHost>
 ```
 
-Then use `https://mybot.example.com/github` as your webhook URL, same as above.
+Caddy (handles the TLS certificate for you automatically):
+```caddy
+mybot.example.com {
+    reverse_proxy 127.0.0.1:8765
+}
+```
+
+Then use `https://mybot.example.com/github` as your webhook URL.
 
 **Option 2 — expose directly**
 
