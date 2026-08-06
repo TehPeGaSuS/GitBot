@@ -11,6 +11,8 @@ Basic bot administration commands.
   !networks                     -- list connected networks
   !quit [reason]                -- disconnect from all networks and exit
   !reload                       -- reload config from disk
+  auth <password>                -- authenticate this session as admin (PM only)
+  deauth                         -- drop your authenticated admin session (PM only)
 
 All commands work via PM too (prefix optional):
   /msg gitbot webhook list #channel

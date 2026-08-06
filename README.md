@@ -33,6 +33,7 @@ python bot.py config.json
 | `webhook.host` | `127.0.0.1` | IP to bind the webhook HTTP server |
 | `webhook.port` | `8765` | Port for the webhook HTTP server |
 | `webhook.secret` | `""` | HMAC secret; leave empty to skip verification |
+| `auth_password` | `""` | Global password for `!auth` (PM-only admin login); leave empty to disable |
 | `shlink.url` | `""` | Base URL of your [Shlink](https://shlink.io) instance |
 | `shlink.api_key` | `""` | Shlink REST API key |
 | `db_path` | `data/gitbot.db` | SQLite database path |
@@ -192,6 +193,8 @@ Pass one or more to `!webhook events <hook> <category ...>`:
 | `issue-minimal` | issue opened/closed/reopened/deleted |
 | `issue` | all common issue events |
 | `issue-all` | every issue sub-event |
+| `issue-comment-minimal` | issue comment created |
+| `pr-review-comment-minimal` | PR review comment created |
 | `repo` | create, delete, release, fork |
 | `star` | watch (GitHub star) |
 | `team` | membership changes |
@@ -237,6 +240,10 @@ Default: `ping code pr issue repo`
 
 !rss interval [<seconds>]
     Show or set the poll interval.  (admin, minimum 30 s)
+
+!rss hideprefix [on|off]
+    Show or toggle the "[RSS]" prefix for this channel.  (admin to set)
+    Default: off (prefix shown)
 ```
 
 ### Format template variables
@@ -280,6 +287,21 @@ Example custom format:
 !quit [reason]
 !reload
 ```
+
+## Authenticating as admin (PM only)
+
+If `auth_password` is set in `config.json`, anyone who knows it can gain
+admin rights for their current session without being listed in a
+network's `admins` masks:
+
+```
+/msg gitbot auth <password>
+/msg gitbot deauth
+```
+
+`auth` is PM-only (it would leak the password to the channel otherwise).
+`deauth` drops the session's admin rights early; sessions also lose them
+on disconnect.
 
 ---
 
@@ -331,7 +353,8 @@ modules/
   wh_gitea.py           Gitea payload handler
   wh_gitlab.py          GitLab payload handler
   rss.py                RSS poller + !rss IRC command
-  admin.py              !join !part !say !raw !quit !reload
+  admin.py              !join !part !say !raw !quit !reload !auth !deauth
+  help.py               !help IRC command
 data/
   gitbot.db         auto-created SQLite database
 ```

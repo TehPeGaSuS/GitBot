@@ -151,6 +151,11 @@ Now open `config.json` in any text editor.  Here is what the important parts mea
     "secret": ""          // Optional security token. See the webhook section below.
   },
 
+  "auth_password": "",   // Optional global password for "/msg mybot auth <password>".
+                          // Lets anyone who knows it log in as admin for their
+                          // session, even if their host isn't in "admins".
+                          // Leave empty to disable.
+
   "db_path": "data/gitbot.db",  // Where to store settings. Leave as-is.
   "rss_interval": 300               // How often to check RSS feeds (in seconds).
 }
@@ -409,8 +414,14 @@ Available event categories:
 | `pr` | All common PR activity |
 | `issue-minimal` | Issue opened / closed / reopened |
 | `issue` | All common issue activity |
+| `issue-all` | Every issue sub-event |
+| `issue-comment-minimal` | Issue comment created |
+| `pr-all` | Every PR sub-event |
+| `pr-review-minimal` | PR review submitted/dismissed |
+| `pr-review-comment-minimal` | PR review comment created |
 | `repo` | Creates, deletes, releases, forks |
 | `star` | Stars (GitHub only) |
+| `team` | Membership changes |
 
 ---
 
@@ -467,6 +478,14 @@ Available variables:
 | `$date` | Published date (YYYY-MM-DD HH:MM) |
 | `$description` | Entry summary / excerpt |
 
+### Step E — Hiding the [RSS] prefix (optional)
+
+```
+!rss hideprefix on     ← drop the "[RSS]" label from announcements
+!rss hideprefix off    ← show it again (default)
+!rss hideprefix        ← check the current setting
+```
+
 ---
 
 ## Quick command reference
@@ -499,6 +518,7 @@ Available variables:
 | `!rss info name` | anyone | Show feed metadata |
 | `!rss format [template]` | admin | Show or set announcement format |
 | `!rss interval [seconds]` | admin | Show or set poll interval |
+| `!rss hideprefix [on\|off]` | admin to set | Show or hide the `[RSS]` prefix |
 
 ### Admin commands  (admin only, work in channel and via PM)
 
@@ -511,6 +531,8 @@ Available variables:
 | `!networks` | List all connected networks |
 | `!quit [reason]` | Disconnect and exit |
 | `!reload` | Reload config.json from disk |
+| `auth password` (PM only) | Log this session in as admin using the global `auth_password` |
+| `deauth` (PM only) | Drop this session's admin login early |
 
 ---
 
