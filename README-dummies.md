@@ -299,7 +299,7 @@ Send commands directly to the bot (no prefix needed, or you can use `!`):
 When messaging the bot directly, you need to tell it **which channel** you
 mean — add `#channel` right after the subcommand:
 ```
-/msg mybot webhook add #myproject owner/repo
+/msg mybot webhook add #myproject github owner/repo
 /msg mybot rss announce add #myproject limnoria
 /msg mybot rss format #myproject [$feed_name] $title — $link
 ```
@@ -347,16 +347,21 @@ Then use `http://YOUR_SERVER_IP:8765/github`.
 
 ### Step B — Register the hook in the channel
 
-In IRC:
+In IRC, tell it which platform the repo lives on (`github`, `gitea`, or `gitlab`):
 ```
-!webhook add owner/repo
+!webhook add github owner/repo
 ```
 
 For example:
 ```
-!webhook add myorg/myrepo         ← specific repo
-!webhook add myorg                ← all repos from this user/org
+!webhook add github myorg/myrepo  ← specific repo on GitHub
+!webhook add github myorg         ← all repos from this user/org on GitHub
+!webhook add gitea myorg/myrepo   ← same repo name, but on your Gitea instance
 ```
+
+The platform is tracked separately, so `github myorg/myrepo` and
+`gitea myorg/myrepo` are two independent hooks — handy if you mirror
+a repo across platforms.
 
 ### Step C — Add the webhook in GitHub / Gitea / GitLab
 
@@ -386,12 +391,12 @@ For example:
 By default all categories are announced.  You can restrict them:
 
 ```
-!webhook events myorg/myrepo code pr
+!webhook events github myorg/myrepo code pr
 ```
 
 Or filter to a specific branch only:
 ```
-!webhook branches myorg/myrepo main
+!webhook branches github myorg/myrepo main
 ```
 
 Available event categories:
@@ -471,11 +476,11 @@ Available variables:
 | Command | What it does |
 |---|---|
 | `!webhook list` | List hooks registered in this channel |
-| `!webhook add owner/repo` | Register a new hook |
-| `!webhook remove owner/repo` | Remove a hook |
-| `!webhook events hook [cats…]` | Show or set event category filter |
-| `!webhook branches hook [br…]` | Show or set branch filter (empty = all) |
-| `!webhook show hook` | Show full config for a hook |
+| `!webhook add github\|gitea\|gitlab owner/repo` | Register a new hook |
+| `!webhook remove github\|gitea\|gitlab owner/repo` | Remove a hook |
+| `!webhook events github\|gitea\|gitlab hook [cats…]` | Show or set event category filter |
+| `!webhook branches github\|gitea\|gitlab hook [br…]` | Show or set branch filter (empty = all) |
+| `!webhook show github\|gitea\|gitlab hook` | Show full config for a hook |
 | `!webhook settings` | Show display settings |
 | `!webhook settings git-prevent-highlight true` | Prevent bot from pinging nicks |
 | `!webhook settings git-hide-prefix true` | Hide the `[git]` prefix |
@@ -559,7 +564,7 @@ journalctl -u gitbot -f          # follow the logs
 **Webhooks arrive but nothing is announced**
 → Run `!webhook list` to check the hook is registered.  
 → Check that the event category filter includes what you sent
-   (run `!webhook show owner/repo`).  
+   (run `!webhook show github|gitea|gitlab owner/repo`).  
 → Check the bot's console output for errors.
 
 **RSS feeds aren't being announced**
