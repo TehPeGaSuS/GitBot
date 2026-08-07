@@ -1,4 +1,4 @@
-# Gitbot
+# GitBot
 
 A single IRC bot that combines:
 - **Bitbot's** GitHub / Gitea / GitLab webhook announcements
