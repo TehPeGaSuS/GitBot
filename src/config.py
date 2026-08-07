@@ -40,6 +40,7 @@ class WebhookConfig:
         self.host: str = data.get("host", "127.0.0.1")
         self.port: int = data.get("port", 8765)
         self.secret: str = data.get("secret", "")     # optional HMAC secret
+        self.commit_lines_max: int = data.get("commit_lines_max", 3)
 
 
 class Config:
