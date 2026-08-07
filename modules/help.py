@@ -18,7 +18,7 @@ COMMANDS = {
                 "<github|gitea|gitlab> <owner/repo|owner|org> [args] "
                 "-- manage GitHub/Gitea/GitLab webhook subscriptions for a channel "
                 "(alias: wh)",
-    "rss":      "rss <add|remove|list|announce|read|info|format|interval|hideprefix> [args] "
+    "rss":      "rss <add|remove|list|feeds|announce|read|info|format|interval|hideprefix> [args] "
                 "-- manage RSS/Atom feed subscriptions",
     "auth":     "auth <password> -- authenticate this session as admin (PM only)",
     "deauth":   "deauth -- drop your authenticated admin session (PM only)",

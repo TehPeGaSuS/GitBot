@@ -26,6 +26,8 @@ IRC commands (all require admin unless noted)
   !rss announce add <name|url> ...  -- start announcing in this channel
   !rss announce remove <name|url> . -- stop announcing
   !rss announce list                -- list feeds announced here (anyone)
+  !rss feeds [global|#channel]      -- list feeds announced here, everywhere,
+                                        or in another channel (anyone)
   !rss read [<name|url>] [<n>]      -- read latest n entries (anyone)
   !rss info <name|url>              -- show feed metadata (anyone)
   !rss format [<template>]          -- show/set channel format template
@@ -294,10 +296,10 @@ async def handle_command(ctx):
         if ctx.is_pm:
             ctx.reply(
                 "Usage: !rss <subcommand> [#channel] [args]  "
-                "— subcommands: add remove list announce read info format interval"
+                "— subcommands: add remove list feeds announce read info format interval"
             )
         else:
-            ctx.reply("Usage: !rss add|remove|list|announce|read|info|format|interval")
+            ctx.reply("Usage: !rss add|remove|list|feeds|announce|read|info|format|interval")
         return
 
     sub = ctx.args[0].lower()
@@ -312,6 +314,8 @@ async def handle_command(ctx):
 
     if sub == "list":
         await _cmd_list(ctx)
+    elif sub == "feeds":
+        await _cmd_feeds(ctx, rest)
     elif sub == "add":
         await _cmd_add(ctx, rest)
     elif sub == "remove":
@@ -342,7 +346,7 @@ async def handle_command(ctx):
     else:
         ctx.error(
             "Unknown subcommand '%s'. "
-            "Use: add remove list announce read info format interval hideprefix  "
+            "Use: add remove list feeds announce read info format interval hideprefix  "
             "— or just '!rss <feedname>' to show the latest entry." % sub
         )
 
@@ -362,6 +366,53 @@ async def _cmd_list(ctx):
     else:
         ctx.reply("Named feeds: " + ", ".join(
             "%s (%s)" % (n, u) for n, u in sorted(feeds.items())))
+
+
+async def _cmd_feeds(ctx, rest):
+    """!rss feeds [global|#channel]
+
+    No argument   -- feeds announced in the current channel.
+    global        -- every named feed and every network/channel announcing it.
+    #channel      -- feeds announced in that specific channel (any network the
+                      command is run from). Usable in-channel or via PM.
+    """
+    if rest and rest[0].lower() == "global":
+        await _cmd_feeds_global(ctx)
+        return
+
+    if rest and rest[0].startswith(("#", "&", "+", "!")):
+        channel = rest[0]
+    elif ctx.is_pm:
+        channel, _ = ctx.pm_channel(rest)
+        if channel is None:
+            return
+    else:
+        channel = ctx.channel
+
+    announced = ctx.bot.db.get_channel(ctx.net_name, channel, "rss-announce", [])
+    if not announced:
+        ctx.reply("No feeds announced in %s." % channel)
+    else:
+        ctx.reply("Feeds announced in %s: %s" % (channel, ", ".join(announced)))
+
+
+async def _cmd_feeds_global(ctx):
+    feeds = ctx.bot.db.get_bot("rss-feeds", {})
+    if not feeds:
+        ctx.reply("No named feeds registered.")
+        return
+
+    # feed name (or bare URL) -> ["net/#channel", ...]
+    consumers: typing.Dict[str, typing.List[str]] = {}
+    for net_name, channel_name, names in ctx.bot.db.find_by_channel_key("rss-announce"):
+        for name_or_url in names:
+            consumers.setdefault(name_or_url, []).append(
+                "%s/%s" % (net_name, channel_name))
+
+    for name, url in sorted(feeds.items()):
+        used_by = consumers.get(name) or consumers.get(url) or []
+        where = ", ".join(used_by) if used_by else "not announced anywhere"
+        ctx.reply("%s (%s): %s" % (name, url, where))
 
 
 async def _cmd_add(ctx, rest):

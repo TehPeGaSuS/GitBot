@@ -236,6 +236,10 @@ Default: `ping code pr issue repo`
 !rss announce list
     List feeds being announced in this channel.
 
+!rss feeds [global|#channel]
+    List feeds announced in this channel, in another channel, or (with
+    "global") every named feed alongside every network/channel announcing it.
+
 !rss announce add <name|url> [<name|url> ...]
     Start announcing a feed in this channel.  (admin)
     Accepts either a registered feed name or a direct URL.
