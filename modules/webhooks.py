@@ -69,6 +69,8 @@ class WebhookServer:
     def __init__(self, bot):
         self.bot = bot
         self.cfg = bot.config.webhook
+        for handler, _, _ in HANDLERS.values():
+            handler.COMMIT_LINES_MAX = self.cfg.commit_lines_max
 
     async def start(self):
         app = web.Application()
