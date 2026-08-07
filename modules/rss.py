@@ -14,7 +14,8 @@ Features (modelled after Limnoria's RSS plugin + bitbot's rss module)
   • Entry deduplication via ID hashing (survives restarts)
   • Etag / Last-Modified HTTP caching
   • Max 3 new entries announced per poll cycle (prevents flood on first add)
-  • Poll interval configurable in config.json (default 300 s)
+  • Poll interval configurable via !rss interval, persisted in the DB
+    (falls back to config.json's rss_interval, default 300 s, until set)
 
 IRC commands (all require admin unless noted)
 ---------------------------------------------
@@ -118,7 +119,7 @@ class RSSPoller:
 
     async def run(self):
         while True:
-            interval = self.bot.config.rss_interval
+            interval = self.bot.db.get_bot("rss-interval", self.bot.config.rss_interval)
             await asyncio.sleep(interval)
             try:
                 await self._poll()
@@ -575,8 +576,8 @@ async def _cmd_interval(ctx, rest):
         ctx.error("Admins only.")
         return
     if not rest:
-        ctx.reply("Current RSS poll interval: %d seconds." %
-                  ctx.bot.config.rss_interval)
+        interval = ctx.bot.db.get_bot("rss-interval", ctx.bot.config.rss_interval)
+        ctx.reply("Current RSS poll interval: %d seconds." % interval)
     else:
         try:
             secs = int(rest[0])
@@ -586,7 +587,7 @@ async def _cmd_interval(ctx, rest):
         except ValueError:
             ctx.error("Interval must be a number of seconds.")
             return
-        ctx.bot.config.rss_interval = secs
+        ctx.bot.db.set_bot("rss-interval", secs)
         ctx.reply("RSS poll interval set to %d seconds." % secs)
 
 
