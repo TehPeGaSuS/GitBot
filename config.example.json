@@ -45,7 +45,8 @@
     "_comment_host": "Bind the webhook HTTP server here. Use 127.0.0.1 and put nginx/caddy in front.",
     "host": "127.0.0.1",
     "port": 8765,
-    "secret": ""
+    "secret": "",
+    "commit_lines_max": 3
   },
 
   "auth_password": "",
