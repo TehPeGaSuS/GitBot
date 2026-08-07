@@ -13,6 +13,7 @@ Features (modelled after Limnoria's RSS plugin + bitbot's rss module)
   • Configurable format template per channel
   • Entry deduplication via ID hashing (survives restarts)
   • Etag / Last-Modified HTTP caching
+  • Warns subscribed channels after repeated consecutive fetch failures
   • Max 3 new entries announced per poll cycle (prevents flood on first add)
   • Poll interval configurable via !rss interval, persisted in the DB
     (falls back to config.json's rss_interval, default 300 s, until set)
@@ -54,6 +55,7 @@ log = logging.getLogger(__name__)
 DEFAULT_FORMAT   = "[$feed_name] $title — $link"
 MAX_NEW_PER_POLL = 3
 MAX_SEEN_IDS     = 500      # cap stored seen-IDs per channel/feed
+FAIL_WARN_EVERY  = 5        # warn on the 5th consecutive failure, then every 5th after
 
 # ------------------------------------------------------------------- helpers
 
@@ -147,13 +149,20 @@ class RSSPoller:
                      for url, targets in url_map.items()
                      for net_name, channel_name in targets[:1]}  # one fetch per URL
             results = {}
+            failed = set()
             for url, task in tasks.items():
                 try:
                     results[url] = await task
                 except Exception as e:
                     log.warning("RSS fetch failed for %s: %s", url, e)
+                    failed.add(url)
 
         for url, targets in url_map.items():
+            if url in failed:
+                await self._handle_failure(url, targets)
+                continue
+            self._reset_failures(url)
+
             parsed = results.get(url)
             if not parsed:
                 continue
@@ -163,6 +172,29 @@ class RSSPoller:
             for net_name, channel_name in targets:
                 await self._announce_new(
                     net_name, channel_name, url, feed_data, entries)
+
+    async def _handle_failure(self, url, targets):
+        """Track consecutive fetch failures for *url* and warn subscribed
+        channels once the failure streak crosses FAIL_WARN_EVERY (and every
+        FAIL_WARN_EVERY failures after that), so a dead feed doesn't fail
+        silently into the logs forever."""
+        fail_key = "rss-fails:%s" % url
+        count = self.bot.db.get_bot(fail_key, 0) + 1
+        self.bot.db.set_bot(fail_key, count)
+
+        if count % FAIL_WARN_EVERY != 0:
+            return
+
+        feed_name = self._name_for_url(url) or url
+        for net_name, channel_name in targets:
+            self.bot.send(net_name, channel_name,
+                "[RSS] Warning: '%s' has failed to fetch %d times in a row."
+                % (feed_name, count))
+
+    def _reset_failures(self, url):
+        fail_key = "rss-fails:%s" % url
+        if self.bot.db.get_bot(fail_key, 0):
+            self.bot.db.set_bot(fail_key, 0)
 
     async def _fetch(self, session, url, net_name, channel_name):
         headers = {}
