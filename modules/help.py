@@ -28,7 +28,8 @@ COMMANDS = {
     "raw":      "raw <irc line> -- send a raw IRC line, use with care (admin)",
     "networks": "networks -- list connected networks (admin)",
     "quit":     "quit [reason] -- disconnect from all networks and exit (admin)",
-    "reload":   "reload -- reload config.json from disk (admin)",
+    "reload":   "reload [--purge] -- reload config.json from disk (admin); "
+                "--purge also deletes DB rows for removed networks",
 }
 
 ALIASES = {"wh": "webhook"}

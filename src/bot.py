@@ -79,9 +79,13 @@ class Bot:
 
     # ------------------------------------------------------------------ reload
 
-    async def reload_config(self) -> typing.Tuple[list, list]:
-        """Re-read config.json, reconcile network connections, and purge DB
-        rows for any networks that were removed.
+    async def reload_config(self, purge: bool = False) -> typing.Tuple[list, list]:
+        """Re-read config.json, reconcile network connections, and (if
+        `purge` is True) purge DB rows for any networks that were removed.
+
+        Removed networks are always disconnected; their DB rows are only
+        deleted when `purge` is set, so an accidental removal from
+        config.json doesn't silently destroy channel settings.
 
         Returns (added_names, removed_names) for reporting to the caller.
         """
@@ -113,8 +117,14 @@ class Bot:
                     await task
                 except (asyncio.CancelledError, Exception):
                     pass
-            purged = self.db.purge_network(name)
-            log.info("Removed network %r — purged %d DB rows", name, purged)
+            if purge:
+                purged = self.db.purge_network(name)
+                log.info("Removed network %r — purged %d DB rows", name, purged)
+            else:
+                log.info(
+                    "Removed network %r — DB rows kept (pass --purge to delete)",
+                    name,
+                )
 
         # --- connect new networks ---
         for net_cfg in self.config.networks:

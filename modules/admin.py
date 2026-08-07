@@ -10,7 +10,8 @@ Basic bot administration commands.
   !raw <irc line>               -- send a raw IRC line (use with care)
   !networks                     -- list connected networks
   !quit [reason]                -- disconnect from all networks and exit
-  !reload                       -- reload config from disk
+  !reload [--purge]             -- reload config from disk (--purge deletes
+                                    DB rows for networks removed from config)
   auth <password>                -- authenticate this session as admin (PM only)
   deauth                         -- drop your authenticated admin session (PM only)
 
@@ -77,13 +78,20 @@ async def handle_command(ctx):
         sys.exit(0)
 
     elif cmd == "reload":
+        purge = "--purge" in args
         ctx.reply("Reloading config…")
-        added, removed = await ctx.bot.reload_config()
+        added, removed = await ctx.bot.reload_config(purge=purge)
         parts = []
         if added:
             parts.append("added: " + ", ".join(added))
         if removed:
-            parts.append("removed: " + ", ".join(removed))
+            if purge:
+                parts.append("removed: " + ", ".join(removed) + " (DB rows purged)")
+            else:
+                parts.append(
+                    "removed: " + ", ".join(removed)
+                    + " (DB rows kept — reload --purge to delete)"
+                )
         detail = " | ".join(parts) if parts else "no network changes"
         ctx.reply("Reload complete — %s." % detail)
 

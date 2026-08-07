@@ -561,7 +561,7 @@ Available variables:
 | `!raw irc line` | Send a raw IRC line |
 | `!networks` | List all connected networks |
 | `!quit [reason]` | Disconnect and exit |
-| `!reload` | Reload config.json from disk |
+| `!reload [--purge]` | Reload config.json from disk (`--purge` also deletes DB rows for removed networks) |
 | `auth password` (PM only) | Log this session in as admin using the global `auth_password` |
 | `deauth` (PM only) | Drop this session's admin login early |
 

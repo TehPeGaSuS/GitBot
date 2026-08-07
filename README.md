@@ -92,8 +92,9 @@ Config can be reloaded without restarting the bot in two ways:
 - **Terminal:** `kill -HUP <pid>` — same effect, no IRC output
 
 On reload, networks added to `config.json` are connected automatically.  
-Networks removed from `config.json` are disconnected and their channel settings
-are purged from the database.
+Networks removed from `config.json` are disconnected, but their channel
+settings are **kept** in the database in case the removal was accidental.
+Use `!reload --purge` to also delete DB rows for removed networks.
 
 ---
 
@@ -301,7 +302,7 @@ Example custom format:
 !raw <irc line>
 !networks
 !quit [reason]
-!reload
+!reload [--purge]
 ```
 
 ## Authenticating as admin (PM only)
@@ -347,7 +348,8 @@ This is useful for keeping configuration chatter out of public channels.
 - Webhook hooks and RSS announcements are stored per-**network**/channel, so the same  
   webhook can fan out to different channels on different networks simultaneously.
 - Adding or removing a network in `config.json` and running `!reload` (or `kill -HUP`)
-  connects/disconnects it live. Removed networks have their DB entries purged automatically.
+  connects/disconnects it live. Removed networks keep their DB entries unless you
+  run `!reload --purge`.
 - To see which network a channel is on, use `!networks`.
 
 ---
