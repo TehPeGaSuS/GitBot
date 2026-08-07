@@ -144,12 +144,14 @@ class GitHub:
             left = left.rsplit(" ", 1)[0]
         return left + "[...]"
 
+    COMMIT_LINES_MAX = 3
+
     def _format_push(self, branch, author, commits, forced, single_url, range_url):
         outputs = []
         force_str = fmt.color("force", fmt.RED) + " " if forced else ""
         if not commits and forced:
             outputs.append(("%s %spushed to %s" % (author, force_str, branch), None))
-        elif len(commits) <= 3:
+        elif len(commits) <= self.COMMIT_LINES_MAX:
             for c in commits:
                 h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
                 msg = c["message"].split("\n")[0].strip()
@@ -157,9 +159,17 @@ class GitHub:
                 outputs.append(("%s %spushed %s to %s: %s"
                     % (author, force_str, h, branch, msg), url))
         else:
-            url = range_url
             outputs.append(("%s %spushed %d commits to %s"
-                % (author, force_str, len(commits), branch), url))
+                % (author, force_str, len(commits), branch), range_url))
+            shown = commits[:self.COMMIT_LINES_MAX]
+            for c in shown:
+                h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
+                msg = c["message"].split("\n")[0].strip()
+                url = single_url % c["id"]
+                outputs.append(("%s %s - %s" % (author, h, msg), url))
+            hidden = len(commits) - len(shown)
+            if hidden > 0:
+                outputs.append(("(+%d hidden commits)" % hidden, None))
         return outputs
 
     # ---------------------------------------------------------------- events

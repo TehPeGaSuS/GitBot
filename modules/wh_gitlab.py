@@ -62,6 +62,8 @@ MR_ACTIONS = {
 
 
 class GitLab:
+    COMMIT_LINES_MAX = 3
+
     def is_private(self, data, headers):
         proj = data.get("project", {})
         return proj.get("visibility_level", 0) != 20
@@ -129,7 +131,7 @@ class GitLab:
         branch = fmt.color(data["ref"].split("/", 2)[-1], fmt.COLOR_BRANCH)
         author = fmt.bold(data.get("user_name", "unknown"))
         commits = data.get("commits", [])
-        if len(commits) <= 3:
+        if len(commits) <= self.COMMIT_LINES_MAX:
             for c in commits:
                 h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
                 msg = c["message"].split("\n")[0].strip()
@@ -139,6 +141,14 @@ class GitLab:
             url = data.get("compare", "")
             outputs.append(("%s pushed %d commits to %s"
                 % (author, len(commits), branch), url))
+            shown = commits[:self.COMMIT_LINES_MAX]
+            for c in shown:
+                h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
+                msg = c["message"].split("\n")[0].strip()
+                outputs.append(("%s %s - %s" % (author, h, msg), c.get("url")))
+            hidden = len(commits) - len(shown)
+            if hidden > 0:
+                outputs.append(("(+%d hidden commits)" % hidden, None))
         return outputs
 
     def _tag_push(self, full_name, data):

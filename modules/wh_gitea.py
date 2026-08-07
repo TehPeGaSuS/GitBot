@@ -47,6 +47,8 @@ RELEASE_ACTIONS = {
 
 
 class Gitea:
+    COMMIT_LINES_MAX = 3
+
     def is_private(self, data, headers):
         return data.get("repository", {}).get("private", False)
 
@@ -98,7 +100,7 @@ class Gitea:
         branch = fmt.color(data["ref"].rpartition("/")[2], fmt.COLOR_BRANCH)
         author = fmt.bold(data["pusher"]["login"])
         commits = data.get("commits", [])
-        if len(commits) <= 3:
+        if len(commits) <= self.COMMIT_LINES_MAX:
             for c in commits:
                 h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
                 msg = c["message"].split("\n")[0].strip()
@@ -108,6 +110,14 @@ class Gitea:
             url = data.get("compare_url", "")
             outputs.append(("%s pushed %d commits to %s"
                 % (author, len(commits), branch), url))
+            shown = commits[:self.COMMIT_LINES_MAX]
+            for c in shown:
+                h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
+                msg = c["message"].split("\n")[0].strip()
+                outputs.append(("%s %s - %s" % (author, h, msg), c["url"]))
+            hidden = len(commits) - len(shown)
+            if hidden > 0:
+                outputs.append(("(+%d hidden commits)" % hidden, None))
         return outputs
 
     def _pull_request(self, full_name, data):
