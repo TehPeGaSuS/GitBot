@@ -114,7 +114,7 @@ class Gitea:
             for c in shown:
                 h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
                 msg = c["message"].split("\n")[0].strip()
-                outputs.append(("%s %s - %s" % (author, h, msg), c["url"]))
+                outputs.append(("%s pushed %s to %s: %s" % (author, h, branch, msg), c["url"]))
             hidden = len(commits) - len(shown)
             if hidden > 0:
                 outputs.append(("(+%d hidden commits)" % hidden, None))

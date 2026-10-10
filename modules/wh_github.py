@@ -166,7 +166,8 @@ class GitHub:
                 h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
                 msg = c["message"].split("\n")[0].strip()
                 url = single_url % c["id"]
-                outputs.append(("%s %s - %s" % (author, h, msg), url))
+                outputs.append(("%s %spushed %s to %s: %s"
+                    % (author, force_str, h, branch, msg), url))
             hidden = len(commits) - len(shown)
             if hidden > 0:
                 outputs.append(("(+%d hidden commits)" % hidden, None))
