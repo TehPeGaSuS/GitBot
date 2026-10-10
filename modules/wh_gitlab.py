@@ -145,7 +145,7 @@ class GitLab:
             for c in shown:
                 h = fmt.color(self._short(c["id"]), fmt.COLOR_ID)
                 msg = c["message"].split("\n")[0].strip()
-                outputs.append(("%s pushed %s to %s: %s" % (author, h, branch, msg), c.get("url")))
+                outputs.append(("%s - %s" % (h, msg), c.get("url")))
             hidden = len(commits) - len(shown)
             if hidden > 0:
                 outputs.append(("(+%d hidden commits)" % hidden, None))
