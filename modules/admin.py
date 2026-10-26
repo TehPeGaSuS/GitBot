@@ -23,6 +23,7 @@ All commands work via PM too (prefix optional):
 import asyncio
 import logging
 import sys
+import time
 
 log = logging.getLogger(__name__)
 
@@ -99,6 +100,37 @@ async def handle_command(ctx):
         ctx.error("Unknown admin command. Available: join part say raw networks quit reload")
 
 
+# Wrong auth passwords per (network, user@host): after AUTH_FREE_TRIES
+# failures, each further one locks that user@host out for twice as long,
+# from AUTH_LOCK_BASE seconds up to AUTH_LOCK_MAX.
+AUTH_FREE_TRIES = 3
+AUTH_LOCK_BASE = 30
+AUTH_LOCK_MAX = 3600
+_failures: dict = {}   # key -> (failure count, locked until)
+
+
+def _userhost(hostmask: str) -> str:
+    return hostmask.split("!", 1)[-1]
+
+
+def _locked_for(key, now=None) -> int:
+    """Seconds left on the lockout for key, 0 if none."""
+    now = time.monotonic() if now is None else now
+    _count, until = _failures.get(key, (0, 0.0))
+    return max(0, int(until - now + 0.999))
+
+
+def _record_failure(key, now=None) -> int:
+    """Count a wrong password; return the new lockout in seconds (0 = none)."""
+    now = time.monotonic() if now is None else now
+    count = _failures.get(key, (0, 0.0))[0] + 1
+    lock = 0
+    if count >= AUTH_FREE_TRIES:
+        lock = min(AUTH_LOCK_MAX, AUTH_LOCK_BASE * 2 ** (count - AUTH_FREE_TRIES))
+    _failures[key] = (count, now + lock)
+    return lock
+
+
 async def handle_auth(ctx):
     """Handle auth/deauth — always via PM, always replies to nick privately.
 
@@ -125,15 +157,30 @@ async def handle_auth(ctx):
         if not ctx.args:
             ctx.network.send_privmsg(ctx.nick, "Usage: auth <password>")
             return
+        key = (ctx.network.name, _userhost(ctx.hostmask))
+        wait = _locked_for(key)
+        if wait:
+            ctx.network.send_privmsg(ctx.nick,
+                "Too many wrong passwords. Try again in %d seconds." % wait)
+            return
         given = ctx.args[0]
-        if _hmac.compare_digest(given, password):
-            ctx.network.authed_nicks.add(ctx.nick)
+        if _hmac.compare_digest(given.encode(), password.encode()):
+            _failures.pop(key, None)
+            ctx.network.authed.add(ctx.hostmask)
             ctx.network.send_privmsg(ctx.nick,
                 "You are now authenticated as admin on %s." % ctx.network.name)
         else:
-            ctx.network.send_privmsg(ctx.nick, "Wrong password.")
+            wait = _record_failure(key)
+            log.warning("[%s] Wrong auth password from %s",
+                        ctx.network.name, ctx.hostmask)
+            if wait:
+                ctx.network.send_privmsg(ctx.nick,
+                    "Wrong password. Too many attempts: wait %d seconds before "
+                    "trying again." % wait)
+            else:
+                ctx.network.send_privmsg(ctx.nick, "Wrong password.")
 
     elif cmd == "deauth":
-        ctx.network.authed_nicks.discard(ctx.nick)
+        ctx.network.deauth(ctx.nick)
         ctx.network.send_privmsg(ctx.nick,
             "Session dropped. You are no longer authenticated.")

@@ -189,8 +189,10 @@ class Bot:
 
     def _is_admin(self, network: Network, hostmask: str,
                  nick: str = "") -> bool:
-        # Session auth takes priority — no hostmask needed.
-        if nick and nick in network.authed_nicks:
+        # Session auth takes priority. It is tied to the full nick!user@host
+        # the admin had when they authenticated (followed across nick
+        # changes), so taking an admin's old nick gives nothing.
+        if network.is_authed(hostmask):
             return True
         for pattern in network.config.admins:
             if fnmatch.fnmatchcase(hostmask, pattern):

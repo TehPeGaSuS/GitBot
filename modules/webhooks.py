@@ -28,7 +28,8 @@ HMAC signature verification
 ----------------------------
 Set "secret" in the webhook section of config.json.
 For GitHub: X-Hub-Signature-256 header is checked.
-Leave "secret" empty to skip verification.
+Without a secret the server refuses every request, unless
+"allow_unsigned": true is set (then anyone who finds the URL can post).
 """
 
 import asyncio
@@ -40,6 +41,7 @@ import logging
 import urllib.parse
 from aiohttp import web
 
+from modules import wh_github, wh_gitea, wh_gitlab
 from modules.wh_github import GitHub
 from modules.wh_gitea  import Gitea
 from modules.wh_gitlab import GitLab
@@ -51,6 +53,9 @@ log = logging.getLogger(__name__)
 FORM_ENCODED = "application/x-www-form-urlencoded"
 
 DEFAULT_EVENT_CATEGORIES = ["ping", "code", "pr", "issue", "repo"]
+
+# GitHub allows payloads up to 25 MB; aiohttp's default limit is 1 MB.
+MAX_BODY_BYTES = 25 * 1024 * 1024
 
 _github = GitHub()
 _gitea  = Gitea()
@@ -72,12 +77,31 @@ class WebhookServer:
         for handler, _, _ in HANDLERS.values():
             handler.COMMIT_LINES_MAX = self.cfg.commit_lines_max
 
+    def make_app(self) -> web.Application:
+        app = web.Application(client_max_size=MAX_BODY_BYTES)
+        for platform in HANDLERS:
+            app.router.add_post("/" + platform, self._route(platform))
+        return app
+
+    def _route(self, platform: str):
+        # aiohttp wants real coroutine functions as handlers (plain
+        # lambdas are deprecated)
+        async def handler(request: web.Request):
+            return await self._handle(request, platform)
+        return handler
+
     async def start(self):
-        app = web.Application()
-        app.router.add_post("/github", lambda r: self._handle(r, "github"))
-        app.router.add_post("/gitea",  lambda r: self._handle(r, "gitea"))
-        app.router.add_post("/gitlab", lambda r: self._handle(r, "gitlab"))
-        runner = web.AppRunner(app)
+        if not self.cfg.secret and not self.cfg.allow_unsigned:
+            log.error("Webhook server NOT started: webhook.secret is empty. Set a "
+                      "secret (and the same one in each forge's webhook settings), "
+                      "or set webhook.allow_unsigned to true to accept unsigned "
+                      "requests from anyone.")
+            return
+        if not self.cfg.secret:
+            log.warning("Webhook server accepts UNSIGNED requests "
+                        "(webhook.allow_unsigned): anyone who finds the URL can "
+                        "make the bot post in your channels.")
+        runner = web.AppRunner(self.make_app())
         await runner.setup()
         site = web.TCPSite(runner, self.cfg.host, self.cfg.port)
         await site.start()
@@ -105,16 +129,20 @@ class WebhookServer:
         # counts as verified regardless of platform (simple shared password).
         # Otherwise fall through to platform-specific HMAC/token verification.
         secret = self.cfg.secret
+        if not secret and not self.cfg.allow_unsigned:
+            # e.g. the secret was removed and the config reloaded
+            log.warning("[webhook] refused %s request: no secret configured", platform)
+            return web.Response(status=403, text="Forbidden")
         if secret:
             qs_secret = request.rel_url.query.get("secret", "")
             if qs_secret:
-                if not hmac.compare_digest(qs_secret, secret):
+                if not hmac.compare_digest(qs_secret.encode(), secret.encode()):
                     log.warning("[webhook] query string secret mismatch (%s)", platform)
                     return web.Response(status=403, text="Forbidden")
             elif platform == "gitlab":
                 # GitLab sends the secret as a plain token header (no HMAC).
                 token = headers.get("X-Gitlab-Token", "")
-                if token != secret:
+                if not hmac.compare_digest(token.encode(), secret.encode()):
                     log.warning("[webhook] GitLab secret mismatch")
                     return web.Response(status=403, text="Forbidden")
             elif platform == "github":
@@ -285,6 +313,35 @@ def _find_hook(platform, full_lower, user_lower, org_lower, hooks: dict):
 # ============================================================== IRC command
 
 VALID_PLATFORMS = ("github", "gitea", "gitlab")
+_HANDLER_MODULES = {"github": wh_github, "gitea": wh_gitea, "gitlab": wh_gitlab}
+
+SETTINGS = ("git-hide-organisation", "git-hide-prefix", "git-prevent-highlight",
+            "git-show-private", "git-shlink")
+TRUE_WORDS = ("true", "1", "yes", "on")
+FALSE_WORDS = ("false", "0", "no", "off")
+
+
+def _event_names(platform: str):
+    """(categories, raw event names) that `!webhook events` accepts for a
+    platform. A raw name is an event the handler knows, optionally with an
+    action, e.g. "push" or "issues/opened"."""
+    module = _HANDLER_MODULES[platform]
+    categories = module.EVENT_CATEGORIES
+    raw = {v for values in categories.values() for v in values}
+    raw |= {_base_event(v) for v in raw}
+    raw |= set(getattr(module, "OTHER_EVENTS", ()))
+    return categories, raw
+
+
+def _base_event(name: str) -> str:
+    """"issues/opened" -> "issues", "check_suite+failure" -> "check_suite"."""
+    return name.split("/", 1)[0].split("+", 1)[0]
+
+
+def _unknown_events(platform: str, names: list) -> list:
+    categories, raw = _event_names(platform)
+    return [n for n in names
+            if n not in categories and n not in raw and _base_event(n) not in raw]
 
 def _hook_key(platform: str, name: str) -> str:
     return "%s:%s" % (platform.lower(), name)
@@ -404,6 +461,14 @@ async def handle_command(ctx):
                       % (existing, ", ".join(all_hooks[existing]["events"])))
         else:
             new_events = [e.lower() for e in extra]
+            unknown = _unknown_events(platform, new_events)
+            if unknown:
+                categories, _raw = _event_names(platform)
+                ctx.error("Unknown event category %s for %s. Categories: %s "
+                          "(or a raw event name, e.g. push or issues/opened)."
+                          % (", ".join(unknown), platform,
+                             " ".join(sorted(categories))))
+                return
             all_hooks[existing]["events"] = new_events
             _save()
             ctx.reply("Updated events for %s: %s" % (existing, ", ".join(new_events)))
@@ -459,12 +524,14 @@ async def handle_command(ctx):
             if len(rest) < 2:
                 ctx.error("Usage: !webhook settings <key> <true|false>")
                 return
-            key, val = rest[0], rest[1].lower() in ("true", "1", "yes", "on")
-            allowed = {"git-hide-organisation", "git-hide-prefix",
-                       "git-prevent-highlight", "git-show-private", "git-shlink"}
-            if key not in allowed:
-                ctx.error("Unknown setting. Allowed: %s" % ", ".join(sorted(allowed)))
+            key, word = rest[0].lower(), rest[1].lower()
+            if key not in SETTINGS:
+                ctx.error("Unknown setting. Allowed: %s" % ", ".join(sorted(SETTINGS)))
                 return
+            if word not in TRUE_WORDS + FALSE_WORDS:
+                ctx.error("Use true or false: !webhook settings %s <true|false>" % key)
+                return
+            val = word in TRUE_WORDS
             ctx.bot.db.set_channel(ctx.net_name, ctx.channel, key, val)
             ctx.reply("Set %s = %s" % (key, val))
 

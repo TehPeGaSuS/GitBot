@@ -14,6 +14,9 @@ PR_COMMIT_URL    = "https://github.com/%s/pull/%s/commits/%s"
 
 COMMENT_MAX = 100
 
+# Handled, but in no category: subscribe with the raw name.
+OTHER_EVENTS = ["check_suite"]
+
 EVENT_CATEGORIES = {
     "ping":     ["ping"],
     "code":     ["push", "commit_comment"],

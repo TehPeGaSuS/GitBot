@@ -12,12 +12,20 @@
       "realname":      "Gitbot",
       "password":      "",
       "sasl_password": "",
+      // SASL account name, if it isn't the same as "nick".
+      "sasl_username": "",
       "channels":      ["#myproject", "#bots"],
       "command_prefix": "!",
       // Optional: bind the outbound connection to this local IP
       // (e.g. on a multi-homed box, or one IP per network to
       // avoid k-lines). Leave empty/omit to use the default route.
       "bind": "",
+      // Optional: raw lines sent after connecting when "nick" was taken
+      // ($nick = the configured nick). DALnet, for example, needs:
+      //   ["PRIVMSG NickServ@services.dal.net :GHOST $nick <password>", "NICK $nick"]
+      "nick_recover": [],
+      // Stop the every-5-minutes NICK retries after this many (0 = never).
+      "nick_regain_tries": 12,
       "admins": [
         "mynick!myuser@my.isp.host",
         "*!*@trusted.vhost"
@@ -45,7 +53,10 @@
     "_comment_host": "Bind the webhook HTTP server here. Use 127.0.0.1 and put nginx/caddy in front.",
     "host": "127.0.0.1",
     "port": 8765,
+    "_comment_secret": "Required: the webhook server does not start without it. Use the same value in each forge's webhook settings (openssl rand -hex 32).",
     "secret": "",
+    "_comment_allow_unsigned": "Only for tests on a private network: accept webhooks without a secret.",
+    "allow_unsigned": false,
     "commit_lines_max": 3
   },
 

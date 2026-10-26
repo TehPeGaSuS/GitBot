@@ -57,9 +57,28 @@ log = logging.getLogger(__name__)
 DEFAULT_FORMAT   = "[$feed_name] $title — $link"
 MAX_NEW_PER_POLL = 3
 MAX_SEEN_IDS     = 500      # cap stored seen-IDs per channel/feed
+MAX_FEED_BYTES   = 10 * 1024 * 1024
 FAIL_WARN_EVERY  = 5        # warn on the 5th consecutive failure, then every 5th after
 
 # ------------------------------------------------------------------- helpers
+
+async def _read_feed(resp) -> bytes:
+    """Body of a feed response; an HTTP error or an oversized body raises,
+    so it counts as a failed fetch."""
+    if resp.status >= 400:
+        raise RuntimeError("HTTP %d" % resp.status)
+    body = await resp.content.read(MAX_FEED_BYTES + 1)
+    if len(body) > MAX_FEED_BYTES:
+        raise RuntimeError("feed is larger than %d MB" % (MAX_FEED_BYTES // 1024 ** 2))
+    return body
+
+
+async def _parse(body: bytes):
+    """Parse in a worker thread: a big feed would otherwise stall IRC and
+    the webhook server while feedparser runs. Bytes (not str) also let
+    feedparser honour the feed's own encoding declaration."""
+    return await asyncio.to_thread(feedparser.parse, body)
+
 
 def _entry_id(entry) -> str:
     raw = entry.get("id") or entry.get("link") or entry.get("title") or ""
@@ -212,13 +231,13 @@ class RSSPoller:
         async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status == 304:
                 return None
-            text = await resp.text()
+            body = await _read_feed(resp)
             if resp.headers.get("ETag"):
                 self.bot.db.set_bot(etag_key, resp.headers["ETag"])
             if resp.headers.get("Last-Modified"):
                 self.bot.db.set_bot(mtime_key, resp.headers["Last-Modified"])
 
-        return feedparser.parse(text)
+        return await _parse(body)
 
     async def _announce_new(self, net_name, channel_name, url,
                             feed_data, entries):
@@ -435,8 +454,8 @@ async def _cmd_add(ctx, rest):
         import aiohttp
         async with aiohttp.ClientSession() as s:
             async with s.get(url, timeout=aiohttp.ClientTimeout(total=15)) as r:
-                text = await r.text()
-        parsed = feedparser.parse(text)
+                body = await _read_feed(r)
+        parsed = await _parse(body)
         if not parsed.get("feed"):
             ctx.error("Could not parse that URL as an RSS/Atom feed.")
             return
@@ -536,8 +555,8 @@ async def _preseed_seen(ctx, name_or_url, url):
         import aiohttp
         async with aiohttp.ClientSession() as s:
             async with s.get(url, timeout=aiohttp.ClientTimeout(total=20)) as r:
-                text = await r.text()
-        parsed = feedparser.parse(text)
+                body = await _read_feed(r)
+        parsed = await _parse(body)
         entries = parsed.get("entries", [])
         seen_key = "rss-seen:%s:%s:%s" % (
             ctx.net_name, ctx.channel,
@@ -594,8 +613,8 @@ async def _cmd_read(ctx, rest):
         import aiohttp
         async with aiohttp.ClientSession() as s:
             async with s.get(url, timeout=aiohttp.ClientTimeout(total=20)) as r:
-                text = await r.text()
-        parsed = feedparser.parse(text)
+                body = await _read_feed(r)
+        parsed = await _parse(body)
     except Exception as e:
         ctx.error("Failed to fetch feed: %s" % e)
         return
@@ -629,8 +648,8 @@ async def _cmd_info(ctx, rest):
         import aiohttp
         async with aiohttp.ClientSession() as s:
             async with s.get(url, timeout=aiohttp.ClientTimeout(total=20)) as r:
-                text = await r.text()
-        parsed = feedparser.parse(text)
+                body = await _read_feed(r)
+        parsed = await _parse(body)
     except Exception as e:
         ctx.error("Failed to fetch: %s" % e)
         return

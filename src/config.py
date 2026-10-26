@@ -19,10 +19,18 @@ class NetworkConfig:
         self.realname: str = data.get("realname", "Gitbot")
         self.password: str = data.get("password", "")
         self.sasl_password: str = data.get("sasl_password", "")
+        # SASL account name, when it differs from the nick
+        self.sasl_username: str = data.get("sasl_username", "")
         self.channels: list = data.get("channels", [])
         self.admins: list = data.get("admins", [])   # nick!user@host masks
         self.command_prefix: str = data.get("command_prefix", "!")
         self.bind: str = data.get("bind", "")   # local IP to bind outbound connection to
+        # Raw lines sent after registering when we didn't get our nick
+        # ("$nick" = the configured nick), e.g. a NickServ GHOST/REGAIN.
+        recover = data.get("nick_recover", [])
+        self.nick_recover: list = [recover] if isinstance(recover, str) else list(recover)
+        # Give up the periodic NICK retries after this many (0 = never).
+        self.nick_regain_tries: int = data.get("nick_regain_tries", 12)
 
 
 class ShlinkConfig:
@@ -39,7 +47,10 @@ class WebhookConfig:
     def __init__(self, data: dict):
         self.host: str = data.get("host", "127.0.0.1")
         self.port: int = data.get("port", 8765)
-        self.secret: str = data.get("secret", "")     # optional HMAC secret
+        self.secret: str = data.get("secret", "")     # HMAC secret / token
+        # Without a secret anyone who finds the URL can make the bot talk, so
+        # an empty secret only works if this is explicitly set to true.
+        self.allow_unsigned: bool = data.get("allow_unsigned", False)
         self.commit_lines_max: int = data.get("commit_lines_max", 3)
 
 

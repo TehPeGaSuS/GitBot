@@ -137,6 +137,12 @@ Now open `config.json` in any text editor.  Here is what the important parts mea
 
       "command_prefix": "!",      // Commands start with this character in channels.
 
+      "nick_recover": [],         // Optional: commands to get the nick back when
+                                  // it's taken (e.g. by the bot's own old
+                                  // session). Sent only then; $nick = "nick".
+                                  // Example: ["PRIVMSG NickServ :REGAIN $nick"]
+      "nick_regain_tries": 12,    // How many times (every 5 min) to retry the
+                                  // nick before giving up. 0 = never give up.
       "admins": [                 // Who is allowed to run admin commands.
         "yournick!*@*"            // This pattern matches yournick from any host.
       ]
@@ -148,13 +154,18 @@ Now open `config.json` in any text editor.  Here is what the important parts mea
                            // Use 127.0.0.1 if you put nginx/caddy in front.
                            // Use 0.0.0.0 to listen on all interfaces directly.
     "port": 8765,         // The port number.
-    "secret": ""          // Optional security token. See the webhook section below.
+    "secret": ""          // REQUIRED for webhooks: a long random password, also
+                           // pasted into each repo's webhook settings. Without it
+                           // the webhook server doesn't start, because anyone who
+                           // found the URL could make the bot say anything.
+                           // (Generate one with:  openssl rand -hex 32)
   },
 
   "auth_password": "",   // Optional global password for "/msg mybot auth <password>".
                           // Lets anyone who knows it log in as admin for their
                           // session, even if their host isn't in "admins".
-                          // Leave empty to disable.
+                          // Leave empty to disable. After 3 wrong tries the
+                          // bot makes you wait before trying again.
 
   "db_path": "data/gitbot.db",  // Where to store settings. Leave as-is.
   "rss_interval": 300               // How often to check RSS feeds (in seconds).
@@ -405,7 +416,8 @@ a repo across platforms.
 1. Go to your repo → Settings → Webhooks → Add webhook
 2. Payload URL: `https://mybot.example.com/github`
 3. Content type: `application/json`
-4. Secret: put something random here and also set `"secret"` in config.json
+4. Secret: the same value as `"secret"` in config.json (required: the bot
+   refuses webhooks without it)
 5. Choose which events to send (or "Send me everything")
 6. Click Add webhook
 

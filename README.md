@@ -32,7 +32,8 @@ python bot.py config.json
 | `networks` | — | List of IRC network objects (see below) |
 | `webhook.host` | `127.0.0.1` | IP to bind the webhook HTTP server |
 | `webhook.port` | `8765` | Port for the webhook HTTP server |
-| `webhook.secret` | `""` | HMAC secret; leave empty to skip verification |
+| `webhook.secret` | `""` | HMAC secret (GitHub/Gitea) or token (GitLab). **Required**: without it the webhook server doesn't start |
+| `webhook.allow_unsigned` | `false` | Set to `true` to run without a secret anyway. Then anyone who finds the URL can make the bot post in your channels |
 | `auth_password` | `""` | Global password for `!auth` (PM-only admin login); leave empty to disable |
 | `shlink.url` | `""` | Base URL of your [Shlink](https://shlink.io) instance |
 | `shlink.api_key` | `""` | Shlink REST API key |
@@ -53,15 +54,42 @@ python bot.py config.json
   "realname":       "Gitbot",
   "password":       "",
   "sasl_password":  "",
+  "sasl_username":  "",
   "channels":       ["#myproject"],
   "command_prefix": "!",
   "bind":           "",
+  "nick_recover":   [],
+  "nick_regain_tries": 12,
   "admins":         ["mynick!myuser@myhost"]
 }
 ```
 
 `admins` are glob patterns matched against `nick!user@host`.  
-`sasl_password` enables SASL PLAIN authentication.  
+`sasl_password` enables SASL PLAIN authentication, with the account name in
+`sasl_username` (defaults to `nick`). If SASL fails, the bot logs it and
+connects without it.  
+If `nick` is taken, the bot connects as `nick_` and takes its nick back as
+soon as it's free. It also retries every 5 minutes, up to
+`nick_regain_tries` times (default 12, about an hour; `0` = forever), then
+logs that it gave up; the holder quitting or changing nick still frees it.  
+`nick_recover` (optional) lists raw IRC lines sent right after connecting,
+only when the bot didn't get its nick; `$nick` is replaced by `nick`. Use it
+to have services free the nick, for example:
+
+```json
+"nick_recover": ["PRIVMSG NickServ :REGAIN $nick"]
+```
+
+(Atheme; Anope uses `RECOVER`). DALnet needs two lines, a `GHOST` with the
+password and then the nick change:
+
+```json
+"nick_recover": ["PRIVMSG NickServ@services.dal.net :GHOST $nick <password>",
+                 "NICK $nick"]
+```
+
+With SASL the bot is already identified, so most services need no password
+in these lines.  
 `bind` (optional) binds the outbound connection to a specific local IP —
 useful on a multi-homed box, or to give each network its own source IP.
 Leave empty to use the default route.
@@ -147,10 +175,16 @@ handle /github {
 Then point your GitHub/Gitea/GitLab webhook at `https://your.host/github`  
 (or `/gitea`, `/gitlab`).
 
-### 4. HMAC secret (optional but recommended)
+### 4. Webhook secret (required)
 
 Set `webhook.secret` in `config.json` and paste the same value into  
-GitHub → Settings → Webhooks → Secret.
+GitHub → Settings → Webhooks → Secret (Gitea/Forgejo: *Secret*, GitLab:
+*Secret token*).
+
+Without a secret the webhook server does not start, because anyone who found
+the URL could make the bot say whatever they want in your channels. If you
+really need that (a test setup on a private network), set
+`"allow_unsigned": true` in the `webhook` section.
 
 ---
 
@@ -174,7 +208,8 @@ All webhook commands require admin.
 
 !webhook events <github|gitea|gitlab> <hook> [category ...]
     Show or replace the event category filter.
-    If no categories given, shows the current list.
+    If no categories given, shows the current list. Unknown names are
+    refused, and the error lists the categories that platform has.
 
 !webhook branches <github|gitea|gitlab> <hook> [branch ...]
     Show or replace the branch filter.
@@ -321,8 +356,13 @@ network's `admins` masks:
 ```
 
 `auth` is PM-only (it would leak the password to the channel otherwise).
-`deauth` drops the session's admin rights early; sessions also lose them
-on disconnect.
+The session belongs to your whole `nick!user@host`: it follows you when you
+change nick, and someone who takes your old nick doesn't get it. `deauth`
+drops the session's admin rights early; sessions also end when you quit and
+when the bot reconnects.
+
+After 3 wrong passwords from the same `user@host`, `auth` is locked for 30
+seconds, doubling with every further wrong password (up to an hour).
 
 ---
 
@@ -377,9 +417,21 @@ modules/
   rss.py                RSS poller + !rss IRC command
   admin.py              !join !part !say !raw !quit !reload !auth !deauth
   help.py               !help IRC command
+tests/                  unit tests (python -m unittest discover)
+  payloads/             example webhook payloads used by the tests
 data/
-  gitbot.db         auto-created SQLite database
+  gitbot.db         auto-created SQLite database (not in git)
 ```
+
+### Running the tests
+
+```
+pip install -r requirements.txt
+python -m unittest discover
+```
+
+They need no network or IRC server. GitHub Actions runs them, and ruff, on
+every push.
 
 ---
 
