@@ -137,6 +137,10 @@ Now open `config.json` in any text editor.  Here is what the important parts mea
 
       "command_prefix": "!",      // Commands start with this character in channels.
 
+      "on_connect": [],           // Optional: commands sent every time the bot
+                                  // connects, before joining channels.
+                                  // $nick = "nick", $me = the nick it got.
+                                  // Example: ["MODE $me +B"]
       "nick_recover": [],         // Optional: commands to get the nick back when
                                   // it's taken (e.g. by the bot's own old
                                   // session). Sent only then; $nick = "nick".

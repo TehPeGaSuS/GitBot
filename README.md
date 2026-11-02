@@ -58,6 +58,7 @@ python bot.py config.json
   "channels":       ["#myproject"],
   "command_prefix": "!",
   "bind":           "",
+  "on_connect":     [],
   "nick_recover":   [],
   "nick_regain_tries": 12,
   "admins":         ["mynick!myuser@myhost"]
@@ -72,6 +73,19 @@ If `nick` is taken, the bot connects as `nick_` and takes its nick back as
 soon as it's free. It also retries every 5 minutes, up to
 `nick_regain_tries` times (default 12, about an hour; `0` = forever), then
 logs that it gave up; the holder quitting or changing nick still frees it.  
+`on_connect` (optional) lists raw IRC lines sent every time the bot
+connects, right after registering and before it joins `channels`. `$nick` is
+replaced by `nick` and `$me` by the nick the bot actually got (they differ
+when it connected as `nick_`). For example, a bot user mode and an IRC
+operator login:
+
+```json
+"on_connect": ["MODE $me +B", "OPER mybot <password>"]
+```
+
+On a network without SASL, a `PRIVMSG NickServ :IDENTIFY $nick <password>`
+here identifies before joining, though services may still take a moment to
+answer, so `sasl_password` is better where it's available.  
 `nick_recover` (optional) lists raw IRC lines sent right after connecting,
 only when the bot didn't get its nick; `$nick` is replaced by `nick`. Use it
 to have services free the nick, for example:

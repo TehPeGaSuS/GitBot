@@ -27,6 +27,11 @@ class NetworkConfig:
         self.bind: str = data.get("bind", "")   # local IP to bind outbound connection to
         # Raw lines sent after registering when we didn't get our nick
         # ("$nick" = the configured nick), e.g. a NickServ GHOST/REGAIN.
+        # Raw lines sent on every connect, before joining channels ("$nick" =
+        # the configured nick, "$me" = the nick we actually got), e.g.
+        # user modes, OPER, or IDENTIFY on networks without SASL.
+        on_connect = data.get("on_connect", [])
+        self.on_connect: list = [on_connect] if isinstance(on_connect, str) else list(on_connect)
         recover = data.get("nick_recover", [])
         self.nick_recover: list = [recover] if isinstance(recover, str) else list(recover)
         # Give up the periodic NICK retries after this many (0 = never).

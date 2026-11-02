@@ -516,6 +516,11 @@ class Network:
             self._raw("CAP END")
 
     def _on_registered(self):
+        # Before the JOINs, so +r/+O channels or modes like +B already
+        # apply when we join.
+        for line in self.config.on_connect:
+            self._raw(line.replace("$nick", self.config.nick)
+                      .replace("$me", self.nick))
         for channel in self.config.channels:
             self._raw(f"JOIN {channel}")
         if self.nick != self.config.nick:

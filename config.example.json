@@ -20,6 +20,10 @@
       // (e.g. on a multi-homed box, or one IP per network to
       // avoid k-lines). Leave empty/omit to use the default route.
       "bind": "",
+      // Optional: raw lines sent on every connect, before joining
+      // channels ($nick = the configured nick, $me = the nick we got),
+      // e.g. ["MODE $me +B", "OPER mybot <password>"]
+      "on_connect": [],
       // Optional: raw lines sent after connecting when "nick" was taken
       // ($nick = the configured nick). DALnet, for example, needs:
       //   ["PRIVMSG NickServ@services.dal.net :GHOST $nick <password>", "NICK $nick"]

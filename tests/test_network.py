@@ -110,6 +110,22 @@ class TestRegistration(unittest.IsolatedAsyncioTestCase):
         await net._handle_line(":irc.example 001 gitbot :Welcome")
         self.assertEqual(sent(net), ["JOIN #a", "JOIN #b"])
 
+    async def test_on_connect_before_joins(self):
+        net = make_network(on_connect=["MODE $me +B",
+                                       "PRIVMSG NickServ :IDENTIFY $nick pw"],
+                           nick_recover="NICK $nick")
+        await net._handle_line(":irc.example 433 * gitbot :in use")
+        sent(net)
+        await net._handle_line(":irc.example 001 gitbot_ :Welcome")
+        self.assertEqual(sent(net), [
+            "MODE gitbot_ +B", "PRIVMSG NickServ :IDENTIFY gitbot pw",
+            "JOIN #a", "JOIN #b", "NICK gitbot"])
+
+    async def test_on_connect_single_string(self):
+        net = make_network(on_connect="MODE $me +B")
+        await net._handle_line(":irc.example 001 gitbot :Welcome")
+        self.assertEqual(sent(net), ["MODE gitbot +B", "JOIN #a", "JOIN #b"])
+
     async def test_nick_retries_stop_after_limit(self):
         net = make_network(nick_regain_tries=2)
         await net._handle_line(":irc.example 433 * gitbot :in use")
