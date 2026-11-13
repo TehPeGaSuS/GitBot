@@ -71,6 +71,9 @@ class Config:
         self.db_path: str = data.get("db_path", "data/gitbot.db")
         self.rss_interval: int = data.get("rss_interval", 300)   # seconds
         self.log_level: str = data.get("log_level", "INFO")
+        self.log_file: str = data.get("log_file", "gitbot.log")  # "" = disabled
+        self.log_stdout: bool = data.get("log_stdout", True)
+        self.log_rotate_days: int = data.get("log_rotate_days", 0)  # 0 = no rotation
         self.auth_password: str = data.get("auth_password", "")  # global session auth password
 
     def reload(self):

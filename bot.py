@@ -7,22 +7,44 @@ All configured via IRC commands.
 
 import asyncio
 import logging
+import logging.handlers
 import os
 import sys
 
 from src.bot import Bot
 from src.config import Config
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("gitbot.log"),
-    ]
-)
+_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# Bootstrap: stderr only until config tells us otherwise.
+logging.basicConfig(level=logging.INFO, format=_LOG_FORMAT,
+                    stream=sys.stderr)
 
 log = logging.getLogger("gitbot")
+
+
+def _setup_logging(config: Config) -> None:
+    """Reconfigure the root logger from config (called after config loads)."""
+    level = getattr(logging, config.log_level.upper(), logging.INFO)
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.handlers.clear()
+
+    if config.log_stdout:
+        root.addHandler(logging.StreamHandler(sys.stdout))
+
+    if config.log_file:
+        if config.log_rotate_days > 0:
+            root.addHandler(logging.handlers.TimedRotatingFileHandler(
+                config.log_file, when="midnight", backupCount=config.log_rotate_days,
+            ))
+        else:
+            root.addHandler(logging.FileHandler(config.log_file))
+
+    if not root.handlers:
+        # Safety net: always keep at least stderr so errors aren't swallowed.
+        root.addHandler(logging.StreamHandler(sys.stderr))
 
 
 def main():
@@ -35,6 +57,7 @@ def main():
 
     try:
         config = Config(config_path)
+        _setup_logging(config)
         bot = Bot(config)
     except Exception:
         log.exception("Failed to initialise bot — check your config and installation.")

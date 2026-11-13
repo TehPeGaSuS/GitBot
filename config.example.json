@@ -68,6 +68,12 @@
   "db_path":      "data/gitbot.db",
   "rss_interval": 300,
   "log_level":    "INFO",
+  // Log file path. Set to "" to disable file logging.
+  "log_file":     "gitbot.log",
+  // Set to false to suppress stdout logging (e.g. when running under systemd).
+  "log_stdout":   true,
+  // Rotate logs daily and keep this many days of history (0 = no rotation).
+  "log_rotate_days": 0,
 
   "shlink": {
     "_comment": "Optional Shlink self-hosted URL shortener (https://shlink.io). Remove or leave url/api_key empty to disable.",
